@@ -11,6 +11,7 @@ Automatisierungsskripte, Use-Case-Dokumentation und Demo-Material für ein produ
 | `Test/` | Testvarianten aller Setup-Skripte mit `Test-`-Präfix sowie Export-/Abfrage-Skripte |
 | `UseCases/` | Ausführliche Anleitung sowie Use-Case-Matrizen zu Label-Freigaben/RMS und M365-DLP-Demoszenarien |
 | `Demo Dokumente/` | Testdokumente mit unterschiedlichen Vertraulichkeitsstufen, ein Demo-Runbook und ein Testprotokoll |
+| `Roadmap/` | Planungsdokumente: Compliance-Manager-Priorisierung, ISO/IEC 27001:2022-Gap-Analyse und Architekturkonzept (Baseline, Governance, PIM) |
 
 ## Voraussetzungen
 
@@ -33,12 +34,22 @@ Die empfohlene Reihenfolge ist in `UseCases/Anleitung.md` im Detail beschrieben.
 
 Einzelne Schritte lassen sich auch separat mit den Skripten in `Main Setup/` ausführen; ohne `-Execute` laufen `Create-PublishingPolicies.ps1` und `Create-DlpComplianceRule.ps1` im reinen Vorschau-Modus. `Create-SensitivityLabels.ps1` besitzt aktuell keinen Vorschau-Modus.
 
+## Roadmap
+
+Im Ordner `Roadmap/` liegen drei weiterführende Planungsdokumente:
+
+- `Compliance-Manager-Implementierungsplan.md` — Priorisierung offener Compliance-Manager-Improvement-Actions
+- `ISO27001-Sensitivity-Labels-DLP-Roadmap.md` — Gap-Analyse gegen ISO/IEC 27001:2022 Annex-A-Controls, inkl. Tracking-Gaps vs. echte Lücken
+- `ISO27001-Purview-Gesamtkonzept.md` — Architekturkonzept mit Label-/DLP-Baseline, Governance-Rollenmodell und PIM-Konzeption für Purview-Rollengruppen
+
+Diese Dokumente sind reine Planungsartefakte; keine der dort beschriebenen Maßnahmen ist automatisch umgesetzt.
+
 ## Bekannte offene Punkte
 
-- `Finance Team` und `Legal Team` sind im Tenant Verteilergruppen, die Publishing Policies verwenden sie aber über `ModernGroupLocation`. Vor produktivem Einsatz bestätigen oder anpassen.
-- Die beiden Copilot-DLP-Regeln heißen "Block …", setzen aber kein `BlockAccess` und wirken aktuell nur als Warnung.
-- Die Endpoint-DLP-Regel kombiniert eine Sensitivity-Label-Bedingung mit `ContentIsNotLabeled = $true` im selben Regelblock; das ist logisch widersprüchlich und sollte vor Aktivierung geprüft werden.
 - Label-Farben lassen sich nicht zuverlässig per API setzen (Purview-Portal akzeptiert nur Paletten-Farben); Farben daher bei Bedarf manuell im Portal an den Labelgruppen setzen.
+- `Create-SensitivityLabels.ps1` besitzt im Gegensatz zu den anderen Main-Setup-Skripten keinen Vorschau-/`-Execute`-Modus.
+
+> Früher an dieser Stelle gelistete Punkte (Finance/Legal als `ModernGroupLocation`, fehlendes `BlockAccess` bei Copilot-DLP-Regeln, widersprüchliche Endpoint-Bedingung) wurden behoben — siehe Commit-Historie von `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Create-DlpComplianceRule.ps1`.
 
 ## Sicherheitshinweis
 
