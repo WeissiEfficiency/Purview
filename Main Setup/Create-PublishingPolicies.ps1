@@ -1,4 +1,30 @@
+<#
+.SYNOPSIS
+    Erstellt produktive Microsoft-Purview-Publishing-Policies.
+
+.DESCRIPTION
+    Definiert Publishing-Policies für Exchange, Legal, Finance und Leadership.
+    Ohne -Execute wird nur eine Vorschau ausgegeben. Bereits vorhandene Policies
+    werden übersprungen.
+
+.PARAMETER UserPrincipalName
+    UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung.
+
+.PARAMETER Execute
+    Erstellt die Policies tatsächlich. Ohne diesen Schalter bleibt das Skript
+    im Vorschau-Modus.
+
+.PARAMETER LogPath
+    Zielordner für das Ausführungslog.
+
+.EXAMPLE
+    .\Create-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com
+
+.EXAMPLE
+    .\Create-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com -Execute
+#>
 #requires -Version 5.1
+#region Parameters
 [CmdletBinding()]
 param(
     [string]$UserPrincipalName,
@@ -8,13 +34,18 @@ param(
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-PublishingPolicies-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
 )
+#endregion Parameters
 
+#region Initialization
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
+# Logordner vorbereiten, bevor eine Verbindung zum Tenant hergestellt wird.
 New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
 $LogFile = Join-Path $LogPath 'Create-PublishingPolicies.log'
+#endregion Initialization
 
+#region Functions
 function Write-Log {
     param(
         [Parameter(Mandatory = $true)][string]$Message,
@@ -25,15 +56,19 @@ function Write-Log {
     Write-Host $line
     Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
 }
+#endregion Functions
 
-# Die Labels werden direkt über ihre Namen angegeben.
+#region PolicyDefinitions
+# Die Policies referenzieren die produktiven Labels direkt über ihre Namen.
 $policies = @(
+    # Vollständige Labelauswahl für alle Exchange-Benutzer.
     [pscustomobject]@{
         Name          = 'Policy All, no Standard, No Inheritence'
         Labels        = @('Public', 'General', 'General-Intern', 'General-Extern', 'Confidential', 'Confidential-Intern', 'Confidential-Extern', 'Strictly-Confidential', 'Strictly-Confidential-Personalized')
         Exchange      = @('All')
         Settings      = @{ requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
+	# Fachbereichsbezogene Policies verwenden Gruppen als Publishing-Scope.
     [pscustomobject]@{
         Name          = 'Legal, Intern Standard, Highest Inheritence for Mails'
         Labels        = @('Public', 'General', 'General-Intern', 'Confidential', 'Confidential-Legal')
@@ -53,7 +88,9 @@ $policies = @(
         Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     }
 )
+#endregion PolicyDefinitions
 
+#region Connection
 Write-Log -Message "Logpfad: $LogPath"
 if (-not $Execute) {
     Write-Log -Level WARN -Message 'Vorschau-Modus: Es werden keine Publishing-Policies erstellt. Für die Erstellung -Execute verwenden.'
@@ -66,7 +103,10 @@ if ($Execute -or $UserPrincipalName) {
         Connect-IPPSSession -ErrorAction Stop
     }
 }
+#endregion Connection
 
+#region PolicyCreation
+# Policies einzeln prüfen, damit ein Fehler die übrigen Einträge nicht verdeckt.
 foreach ($policy in $policies) {
     $policyParams = @{
         Name   = $policy.Name
@@ -94,5 +134,8 @@ foreach ($policy in $policies) {
         Write-Log -Level ERROR -Message "Publishing-Policy '$($policy.Name)': $($_.Exception.Message)"
     }
 }
+#endregion PolicyCreation
 
+#region Completion
 Write-Log -Message 'Skript beendet.'
+#endregion Completion
