@@ -50,7 +50,7 @@ Die Matrix basiert auf:
 | 4 | Rechtliches Dokument -> externer Empfänger | Vertrag an externe Kanzlei teilen | `Confidential-Legal` | **Blockiert** | `Legal sharing violation with notification options` |
 | 5 | Streng vertrauliches personalisiertes Dokument -> extern | Individuelle Freigabe an benannten Partner | `Strictly-Confidential-Personalized` | Portalzugriff, Alert und Incident Report; aktuell nicht durch `BlockAccess` blockiert | `Strictly confidential personalized sharing` |
 | 6 | Öffentliches Dokument -> extern | Public-Dokument über externen Link freigeben | `Public` | Kein vertraulicher Zugriffsschutz durch das Label | Keine passende Blockregel |
-| 7 | Nicht gelabeltes Dokument -> eingeschränkte App | Datei ohne Label aus Endpoint-App hochladen | Kein Label | Endpoint-Regel enthält `ContentIsNotLabeled=true`; Wirkung im Pilot prüfen | `Sensitiv data block upload to restricted cloud apps` |
+| 7 | Nicht gelabeltes Dokument -> eingeschränkte App | Datei ohne Label aus Endpoint-App hochladen | Kein Label | Löst die Endpoint-Regel nicht aus, da diese ausschließlich an produktive vertrauliche Labels gebunden ist | `Sensitiv data block upload to restricted cloud apps` (kein Treffer) |
 
 ### 2.2 E-Mail: Exchange Online
 
@@ -67,17 +67,21 @@ Die Matrix basiert auf:
 
 | Nr. | Datenfluss | Beispiel | Label/Kontext | Ergebnis aktuell | DLP-Regel |
 |---:|---|---|---|---|---|
-| 14 | Sensibles Dokument -> Copilot | Copilot soll vertrauliche Datei zusammenfassen | `Confidential-Intern`, `Confidential-Legal` oder anderes sensibles Label | Portalzugriff und Alert; der Regelname sagt Blockierung, `BlockAccess` ist aber nicht gesetzt | `Block labled content from beeing process Confidential Intern up` |
-| 15 | Externe E-Mail -> Copilot | Copilot verarbeitet Inhalt einer externen Nachricht | Absender außerhalb der Organisation | Portalzugriff und Alert; aktuell keine technische Blockierung durch `BlockAccess` | `Block Mails from ourside from beeing processed` |
+| 14 | Sensibles Dokument -> Copilot | Copilot soll vertrauliche Datei zusammenfassen | `Confidential-Intern`, `Confidential-Legal` oder anderes sensibles Label | **Blockiert** (`BlockAccess=true`), zusätzlich Portalzugriff und Alert | `Block labled content from beeing process Confidential Intern up` |
+| 15 | Externe E-Mail -> Copilot | Copilot verarbeitet Inhalt einer externen Nachricht | Absender außerhalb der Organisation | **Blockiert** (`BlockAccess=true`), zusätzlich Portalzugriff und Alert | `Block Mails from ourside from beeing processed` |
 | 16 | Public-Dokument -> Copilot | Öffentliche Information zusammenfassen lassen | `Public` | Kein Treffer der sensiblen Labelbedingung | Keine passende Blockregel |
+
+> **Behoben (28.08.2026):** Beide Copilot-Regeln setzen jetzt `BlockAccess=true` und blockieren aktiv, statt nur zu warnen.
 
 ### 2.4 Endpoint und Cloud-Anwendungen
 
 | Nr. | Datenfluss | Beispiel | Label/Kontext | Ergebnis aktuell | DLP-Regel |
 |---:|---|---|---|---|---|
-| 17 | Sensible Datei -> eingeschränkte Cloud-/KI-App | `Confidential-Finance` in eine nicht freigegebene KI-App hochladen | Sensibles Label | Portalzugriff und Alert; konkrete Blockwirkung im Pilot prüfen | `Sensitiv data block upload to restricted cloud apps` |
-| 18 | Datei ohne Label -> eingeschränkte Cloud-/KI-App | Nicht klassifizierte Datei hochladen | Kein Label | Regel enthält `ContentIsNotLabeled=true`; konkrete Wirkung im Pilot prüfen | `Sensitiv data block upload to restricted cloud apps` |
+| 17 | Sensible Datei -> eingeschränkte Cloud-/KI-App | `Confidential-Finance` in eine nicht freigegebene KI-App hochladen | Sensibles Label | **Blockiert** (`BlockAccess=true`), Portalzugriff und Alert | `Sensitiv data block upload to restricted cloud apps` |
+| 18 | Datei ohne Label -> eingeschränkte Cloud-/KI-App | Nicht klassifizierte Datei hochladen | Kein Label | Löst die Regel nicht mehr aus (die frühere `ContentIsNotLabeled`-Bedingung wurde entfernt) | Keine passende Blockregel |
 | 19 | Public-Datei -> zugelassene App | Öffentliches Dokument in eine App hochladen | `Public` | Kein Treffer einer sensiblen Labelbedingung | Keine passende Blockregel |
+
+> **Behoben (28.08.2026):** Die widersprüchliche Zusatzbedingung `ContentIsNotLabeled=true` wurde aus der Endpoint-Regel entfernt. Sie prüft jetzt ausschließlich die Label-Bedingung und blockiert aktiv.
 
 ### 2.5 Google Workspace
 
@@ -109,7 +113,7 @@ Die Matrix basiert auf:
 3. Mit einem Leadership-Mitglied teilen.
 4. Mit einem Benutzer ohne Berechtigung oder externen Empfänger teilen.
 5. Erwartung: Finance und Leadership erhalten Zugriff gemäß RMS-Rechten; externe Freigabe wird durch DLP blockiert.
-6. Prüfen, ob Finance Team technisch als gültige Publishing-Zielgruppe verwendet werden kann.
+6. Die Publishing-Policy für Finance nutzt jetzt `ExchangeLocation` und adressiert die Verteilergruppe direkt.
 
 ### Demo C: General-Intern per E-Mail extern
 
@@ -147,14 +151,14 @@ Die Matrix basiert auf:
 3. Erwartung: Upload wird blockiert und der Benutzer erhält einen Policy Tip.
 4. Vergleich mit einer `Public`-Datei durchführen.
 
-### Demo G: Copilot-Regel als Warnung
+### Demo G: Copilot blockiert sensible Inhalte aktiv
 
-**Ziel:** Tatsächliche Konfiguration gegenüber dem Regelname erklären.
+**Ziel:** Zeigen, dass Copilot sensible Inhalte jetzt tatsächlich blockiert, nicht nur warnt.
 
 1. Sensibles Dokument auswählen.
 2. Copilot zur Zusammenfassung auffordern.
-3. Erwartung: Portalzugriff und Alert gemäß aktueller Konfiguration.
-4. Dokumentieren, dass `BlockAccess` derzeit nicht gesetzt ist und der Vorgang deshalb nicht zwingend blockiert wird.
+3. Erwartung: Zugriff wird durch `BlockAccess=true` verhindert, zusätzlich Portalzugriff und Alert.
+4. Mit einer `Public`-Datei vergleichen, die keinen Treffer erzeugt.
 
 ## 4. Erwartungsmatrix: erlaubt, gewarnt, blockiert
 
@@ -164,7 +168,7 @@ Die Matrix basiert auf:
 | Extern in SharePoint/OneDrive teilen | Erlaubt | **Blockiert** | **Blockiert** | **Blockiert** | Je nach Regel; Pilot erforderlich |
 | Externe E-Mail | Erlaubt | Verschlüsselt | **Blockiert** | Domain-/Regelprüfung erforderlich | Je nach Regel; Pilot erforderlich |
 | E-Mail an `pm.me` | Erlaubt | Policy Tip/Alert abhängig vom Label | Policy Tip/Alert | Policy Tip/Alert | Policy Tip/Alert |
-| Verarbeitung durch Copilot | Erlaubt | Nicht durch Labelregel erfasst | Warnung/Portalzugriff | Warnung/Portalzugriff | Warnung/Portalzugriff |
+| Verarbeitung durch Copilot | Erlaubt | Nicht durch Labelregel erfasst | **Blockiert** | **Blockiert** | **Blockiert** |
 | Upload nach Google Drive | Erlaubt | Nicht durch Labelregel erfasst | **Blockiert** | **Blockiert** | **Blockiert**, wenn Bedingung greift |
 
 ## 5. Abnahmeprotokoll für Demos
@@ -177,14 +181,12 @@ Die Matrix basiert auf:
 | 4 |  | `General-Intern` | Externe E-Mail | Verschlüsselt |  |  |
 | 5 |  | `Confidential-Intern` | Externe E-Mail | Blockiert |  |  |
 | 6 |  | Sensibles Label | Google Drive | Blockiert |  |  |
-| 7 |  | Sensibles Label | Copilot | Alert/Portalzugriff |  |  |
-| 8 |  |  | Externe E-Mail | Copilot Alert/Portalzugriff |  |  |
+| 7 |  | Sensibles Label | Copilot | Blockiert |  |  |
+| 8 |  |  | Externe E-Mail | Copilot blockiert |  |  |
 
 ## 6. Bekannte Einschränkungen
 
-- Finance Team und Legal Team sind im Tenant Verteilergruppen, die Publishing Policies verwenden jedoch `ModernGroupLocation`.
-- Die Endpoint-Regel kombiniert Sensitivity-Labels mit `ContentIsNotLabeled=true`; der tatsächliche Treffer muss im Pilot bestätigt werden.
-- Die Copilot-Regeln heißen "Block", setzen aktuell aber kein `BlockAccess`.
+- Die Endpoint-Regel bindet sich ausschließlich an produktive vertrauliche Labels; ein Test mit einer nicht gelabelten Datei erzeugt bewusst keinen Treffer.
 - Bereits vorhandene oder backendseitig gelöschte Labels können bei erneuter Erstellung API-Fehler melden. Für diese Matrix werden die produktiven Labeldefinitionen zugrunde gelegt.
 
 ## 7. M365-Dienstübersicht für Demos
@@ -196,7 +198,7 @@ Die Matrix basiert auf:
 | OneDrive for Business | Persönliche Datei per Link teilen | Sensitivity Label, externe Freigabe, DLP | Wird der persönliche Freigabelink blockiert? |
 | Microsoft 365 Groups | Datei, Unterhaltung oder E-Mail im Gruppenbereich | Publishing Scope und Gruppenberechtigungen | Welche Gruppe darf das Label verwenden oder lesen? |
 | Microsoft Teams | Dateiablage über SharePoint/OneDrive | Indirekt über Speicherort und Benutzerrechte | Wirkt die Kontrolle beim Teilen aus Teams heraus? |
-| Copilot | Prompt oder Zusammenfassung mit M365-Inhalten | DLP-Regel für sensible Labels und externe Absender | Wird nur gewarnt oder tatsächlich blockiert? |
+| Copilot | Prompt oder Zusammenfassung mit M365-Inhalten | DLP-Regel für sensible Labels und externe Absender | Wird der Zugriff blockiert? |
 | Endpoint | Upload von Gerät zu Cloud-/KI-App | Endpoint-DLP-Regel | Wird der Upload zugelassen, gemeldet oder blockiert? |
 | Google Workspace | Upload von M365-Datei nach Google Drive | Anwendungsbezogene DLP-Regel | Verhindert Purview den externen Cloud-Upload? |
 
@@ -233,8 +235,8 @@ Jeder blockierende Test benötigt einen positiven Kontrolltest. So lässt sich u
 | `Confidential-Intern` an externe E-Mail senden | `Public` an externe E-Mail senden | Blockiert | Erlaubt |
 | `General-Intern` an `pm.me` senden | `General-Intern` an andere externe Domain senden | Policy Tip/Alert gemäß Regel | Verschlüsselung gemäß `Encryption` |
 | `Confidential-Legal` nach Google Drive hochladen | `Public` nach Google Drive hochladen | Blockiert, sofern Anwendungskontext greift | Kein Treffer der sensiblen Labelregel |
-| Sensibles Dokument mit Copilot verarbeiten | `Public` mit Copilot verarbeiten | Aktuell Warnung/Portalzugriff | Kein Treffer der sensiblen Labelregel |
-| Datei ohne Label zu KI-App hochladen | `Public` zu zugelassener App hochladen | Endpoint-Regel muss geprüft werden | Kein Treffer der sensiblen Labelregel |
+| Sensibles Dokument mit Copilot verarbeiten | `Public` mit Copilot verarbeiten | Blockiert | Kein Treffer der sensiblen Labelregel |
+| Datei ohne Label zu KI-App hochladen | `Public` zu zugelassener App hochladen | Kein Treffer (Endpoint-Regel greift nur bei produktiven Labels) | Kein Treffer der sensiblen Labelregel |
 
 ## 10. Erwartete Benutzererfahrung
 
@@ -306,7 +308,7 @@ Kontrollfragen:
 | 5 | `Confidential-Intern` extern mailen | 10 min | Vertrauliche E-Mail wird blockiert |
 | 6 | `Confidential-Finance` mit Gruppen testen | 10 min | RMS-Rechte und Gruppenwirkung |
 | 7 | Upload nach Google Drive | 10 min | Externer Cloud-Datenfluss wird blockiert |
-| 8 | Copilot-Szenario | 10 min | Aktuell Alert/Portalzugriff statt sicherer Blockierung |
+| 8 | Copilot-Szenario | 10 min | Copilot blockiert sensible Inhalte aktiv |
 | 9 | Alerts und Incidents zeigen | 10 min | Administrativer Nachweis und Reaktion |
 
 ## 14. Go-/No-Go-Kriterien
@@ -314,11 +316,12 @@ Kontrollfragen:
 ### Go
 
 - Produktive Labels ohne `Test-` sind vorhanden und auswählbar.
-- Publishing Policies zeigen die erwarteten Scopes.
+- Publishing Policies zeigen die erwarteten Scopes (Finance/Legal über `ExchangeLocation`, Leadership über `ModernGroupLocation`).
 - Externes Teilen von `General-Intern` wird blockiert.
 - Externe `General-Intern`-E-Mail wird verschlüsselt.
 - Externe `Confidential-Intern`-E-Mail wird blockiert.
 - Google-Drive-Test erzeugt die erwartete DLP-Maßnahme.
+- Copilot-Test blockiert sensible Inhalte aktiv (`BlockAccess=true`).
 - Alerts und Incident Reports sind nachvollziehbar.
 
 ### No-Go
@@ -326,9 +329,9 @@ Kontrollfragen:
 - Eine produktive Regel referenziert weiterhin ein `Test-`-Label.
 - Eine sensible Datei kann ohne erwarteten Alert oder Block nach außen gelangen.
 - RMS-Rechte erlauben Zugriff für nicht vorgesehene Benutzer.
-- Finance oder Legal werden als `ModernGroupLocation` verwendet, obwohl die Zielgruppe nur eine Verteilergruppe ist und dies nicht bestätigt wurde.
-- Copilot wird als blockiert dokumentiert, obwohl aktuell nur Warnung und Portalzugriff konfiguriert sind.
-- Endpoint-Ergebnisse sind wegen der Kombination aus Labelbedingung und `ContentIsNotLabeled=true` nicht reproduzierbar.
+- Finance oder Legal werden weiterhin als `ModernGroupLocation` konfiguriert, obwohl beide Verteilergruppen sind.
+- Copilot blockiert sensible Inhalte trotz Konfiguration nicht (`BlockAccess` fehlt oder greift nicht).
+- Endpoint-Ergebnisse sind nicht reproduzierbar.
 
 ## 15. Konkrete Testbenutzer und Gruppen
 
@@ -375,7 +378,7 @@ Weitere bestätigte Gruppenmitglieder:
 5. Datei mit einem Benutzer außerhalb der berechtigten Gruppen teilen.
 6. Datei extern freigeben.
 7. Erwartung: Finance und Leadership erhalten Zugriff gemäß RMS-Rechten; externe Freigabe wird durch `No sharing outside org` blockiert.
-8. Prüfen, ob die Publishing Policy für Finance tatsächlich auf diese Verteilergruppe angewendet werden kann.
+8. Die Publishing Policy für Finance nutzt jetzt `ExchangeLocation` und adressiert die Verteilergruppe direkt.
 
 ### 16.3 Legal: Grady Archie
 
@@ -434,5 +437,5 @@ Keine echten vertraulichen Legal-, Finance- oder Personaldaten verwenden. Für a
 | 8 | Christie Cline | externe Testadresse | `General-Intern` per E-Mail | DLP-Blockierung oder Policy Tip gemäß Flow |
 | 9 | Christie Cline | externe Testadresse | `General-Intern` per E-Mail | RMS-Verschlüsselung gemäß `Encryption` prüfen |
 | 10 | Debra Berger | Google Drive | `Confidential-Finance` | Upload blockiert |
-| 11 | Alex Wilber | Copilot | `Confidential-Legal` | Aktuell Alert/Portalzugriff, kein sicherer Block |
-| 12 | Christie Cline | eingeschränkte KI-App | kein Label | Endpoint-Regel und tatsächliche Wirkung prüfen |
+| 11 | Alex Wilber | Copilot | `Confidential-Legal` | Blockiert (`BlockAccess=true`), Portalzugriff und Alert |
+| 12 | Christie Cline | eingeschränkte KI-App | kein Label | Kein Treffer (Endpoint-Regel greift nur bei produktiven Labels) |
