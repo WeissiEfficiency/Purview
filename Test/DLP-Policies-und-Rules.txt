@@ -1,0 +1,291 @@
+Microsoft Purview DLP
+Dokumentation der exportierten Policies und Rules
+=================================================
+
+Quelle
+------
+Erstellt auf Basis der Exporte:
+- DlpCompliancePolicies.csv
+- DlpComplianceRules.csv
+
+Stand: 2026-08-28
+
+Hinweise
+--------
+- Alle fuenf Policies sind laut Export aktiviert (Mode: Enable, Enabled: True).
+- Alle zehn Regeln laufen im Modus Enforce.
+- Die Labelnamen werden so dokumentiert, wie sie im Export vorkommen. Die Bezeichnungen mit "Test-" sind daher Bestandteil der aktuellen Konfiguration.
+- "Extern" beziehungsweise "NotInOrganization" bezeichnet Zugriffe oder Empfaenger ausserhalb der eigenen Organisation.
+
+1. Policies
+===========
+
+1.1 SPO ODB - Restrict Sharing Outside
+--------------------------------------
+Zweck:
+Schutz sensibler Inhalte bei der externen Freigabe in SharePoint und OneDrive for Business.
+
+Status und Geltungsbereich:
+- Status: aktiviert
+- Modus: Enable
+- Workloads: Exchange, SharePoint, OneDriveForBusiness
+- SharePoint: alle Inhalte
+- OneDrive for Business: alle Inhalte
+
+Regeln:
+- Legal sharing violation with notification options
+- Strictly confidential personalized sharing
+- No sharing outside org
+
+1.2 EXO - All user - Restrict sharing outside
+---------------------------------------------
+Zweck:
+Verhindern beziehungsweise kontrollieren der externen Weitergabe sensibler E-Mail-Inhalte in Exchange Online.
+
+Status und Geltungsbereich:
+- Status: aktiviert
+- Modus: Enable
+- Workloads: Exchange, SharePoint, OneDriveForBusiness
+- Exchange: alle Benutzer
+
+Regeln:
+- Recipient domain is proton mail - needs approval
+- Encryption
+- Disallow sharing of general internal or unlabeled content
+
+1.3 AI -All users - Block processing
+------------------------------------
+Zweck:
+Verhindern, dass bestimmte Inhalte durch KI-Anwendungen verarbeitet werden.
+
+Status und Geltungsbereich:
+- Status: aktiviert
+- Modus: Enable
+- Workloads: Exchange, SharePoint, OneDriveForBusiness, Applications
+- Zielbereich: alle Benutzer in den erfassten Anwendungen
+
+Regeln:
+- Block labled content from beeing process Confidential Intern up
+- Block Mails from ourside from beeing processed
+
+1.4 Endpoint - All users - Restrict upload to AI Apps
+-----------------------------------------------------
+Zweck:
+Kontrolle des Uploads sensibler oder nicht gekennzeichneter Daten zu eingeschraenkten Cloud- und KI-Anwendungen an Endpoints.
+
+Status und Geltungsbereich:
+- Status: aktiviert
+- Modus: Enable
+- Workloads: Exchange, SharePoint, OneDriveForBusiness, EndpointDevices
+- Endpoints: alle Geraete
+
+Regel:
+- Sensitiv data block upload to restricted cloud apps
+
+1.5 GoogleDrive - All users - Block usage
+-----------------------------------------
+Zweck:
+Blockieren der Weitergabe sensibler Inhalte an Google Workspace beziehungsweise Google Drive.
+
+Status und Geltungsbereich:
+- Status: aktiviert
+- Modus: Enable
+- Workloads: Exchange, SharePoint, OneDriveForBusiness, Applications
+- Anwendung: Google Workspace (Application-ID 11770)
+- Zielbereich: alle Benutzer
+
+Regel:
+- Block upload to google drive
+
+2. Rules
+========
+
+2.1 Legal sharing violation with notification options
+-----------------------------------------------------
+Zugehoerige Policy:
+SPO ODB - Restrict Sharing Outside
+
+Bedingungen:
+- Inhalt ist mit dem Sensitivity Label "Test-Confidential-Legal" gekennzeichnet.
+- Der Zugriff erfolgt ausserhalb der Organisation (AccessScope: NotInOrganization).
+
+Massnahmen:
+- Zugriff blockieren.
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+- Incident Report an "admin@m365ds410216.onmicrosoft.com" und an Site-Administratoren senden.
+- Den letzten Bearbeiter per E-Mail und Policy Tip benachrichtigen.
+- Policy Tip als Hinweis anzeigen.
+- Benutzerdefinierten Hinweis anzeigen: "DLP violation legal documents".
+
+2.2 Strictly confidential personalized sharing
+------------------------------------------------
+Zugehoerige Policy:
+SPO ODB - Restrict Sharing Outside
+
+Bedingungen:
+- Inhalt ist mit dem Sensitivity Label "Test-Strictly-Confidential-Personalized" gekennzeichnet.
+- Der Zugriff erfolgt ausserhalb der Organisation (AccessScope: NotInOrganization).
+
+Massnahmen:
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+- Incident Report an "admin@m365ds410216.onmicrosoft.com" senden.
+
+2.3 No sharing outside org
+--------------------------
+Zugehoerige Policy:
+SPO ODB - Restrict Sharing Outside
+
+Bedingungen:
+- Inhalt ist mit mindestens einem der folgenden Sensitivity Labels gekennzeichnet:
+  - Test-General-Intern
+  - Test-Confidential-Intern
+  - Test-Confidential-Finance
+- Der Zugriff erfolgt ausserhalb der Organisation (AccessScope: NotInOrganization).
+
+Massnahmen:
+- Zugriff blockieren.
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+- Incident Report an Site-Administratoren senden.
+- Den letzten Bearbeiter per E-Mail und Policy Tip benachrichtigen.
+- Policy Tip als Hinweis anzeigen.
+
+2.4 Recipient domain is proton mail - needs approval
+-----------------------------------------------------
+Zugehoerige Policy:
+EXO - All user - Restrict sharing outside
+
+Bedingungen:
+- Der Empfaenger befindet sich in der Domain "pm.me".
+- Der Inhalt ist mit mindestens einem der folgenden Sensitivity Labels gekennzeichnet:
+  - Test-General-Intern
+  - Test-General-Extern
+  - Test-Confidential-Intern
+  - Test-Confidential-Extern
+  - Test-Confidential-Legal
+  - Test-Confidential-Finance
+  - Test-Strictly-Confidential-Intern
+  - Test-Strictly-Confidential-Personalized
+
+Massnahmen:
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+- Den letzten Bearbeiter per E-Mail und Policy Tip benachrichtigen.
+- Policy Tip als Hinweis anzeigen.
+- Nach dieser Regel die weitere Policy-Verarbeitung beenden.
+
+2.5 Encryption
+---------------
+Zugehoerige Policy:
+EXO - All user - Restrict sharing outside
+
+Bedingungen:
+- Der Zugriff erfolgt ausserhalb der Organisation (AccessScope: NotInOrganization).
+- Der Inhalt ist mit dem Sensitivity Label "Test-General-Intern" gekennzeichnet.
+
+Massnahmen:
+- Nachricht mit der RMS-Vorlage "Confidential \\ All Employees" verschluesseln.
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+- Den letzten Bearbeiter per Policy Tip benachrichtigen.
+- Policy Tip als Dialog anzeigen.
+- Nach dieser Regel die weitere Policy-Verarbeitung beenden.
+
+2.6 Disallow sharing of general internal or unlabeled content
+--------------------------------------------------------------
+Zugehoerige Policy:
+EXO - All user - Restrict sharing outside
+
+Bedingungen:
+- Der Zugriff erfolgt ausserhalb der Organisation (AccessScope: NotInOrganization).
+- Der Inhalt ist mit dem Sensitivity Label "Test-Confidential-Intern" gekennzeichnet.
+
+Massnahmen:
+- Zugriff blockieren.
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+- Den letzten Bearbeiter sowie "admin@m365ds410216.onmicrosoft.com" per E-Mail und Policy Tip benachrichtigen.
+- Benutzerdefinierten Policy-Tip anzeigen: "Don't share internal documents".
+- Policy Tip als Hinweis anzeigen.
+- Nach dieser Regel die weitere Policy-Verarbeitung beenden.
+
+2.7 Block upload to google drive
+-------------------------------
+Zugehoerige Policy:
+GoogleDrive - All users - Block usage
+
+Bedingungen:
+- Inhalt ist mit mindestens einem der folgenden Sensitivity Labels gekennzeichnet:
+  - Test-General-Intern
+  - Test-Confidential-Intern
+  - Test-Confidential-Legal
+  - Test-Confidential-Finance
+  - Test-Strictly-Confidential-Intern
+  - Test-Strictly-Confidential-Personalized
+- Der Zugriff erfolgt ausserhalb der Organisation (AccessScope: NotInOrganization).
+
+Massnahmen:
+- Zugriff blockieren.
+- Zugriff auf das Purview-Portal erzwingen.
+- Den letzten Bearbeiter benachrichtigen.
+- Policy Tip als Hinweis anzeigen.
+
+2.8 Sensitiv data block upload to restricted cloud apps
+--------------------------------------------------------
+Zugehoerige Policy:
+Endpoint - All users - Restrict upload to AI Apps
+
+Bedingungen:
+- Inhalt ist mit mindestens einem der folgenden Sensitivity Labels gekennzeichnet:
+  - Test-Confidential-Intern
+  - Test-Confidential-Extern
+  - Test-Confidential-Legal
+  - Test-Confidential-Finance
+  - Test-Strictly-Confidential-Intern
+  - Test-Strictly-Confidential-Personalized
+- Der Inhalt ist nicht gekennzeichnet (ContentIsNotLabeled: true).
+
+Massnahmen:
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+
+Hinweis:
+Die Kombination aus gekennzeichnetem Inhalt und ContentIsNotLabeled=true wurde unveraendert aus dem Export uebernommen und sollte fachlich beziehungsweise technisch nochmals geprueft werden.
+
+2.9 Block labled content from beeing process Confidential Intern up
+-------------------------------------------------------------------
+Zugehoerige Policy:
+AI -All users - Block processing
+
+Bedingungen:
+- Inhalt ist mit mindestens einem der folgenden Sensitivity Labels gekennzeichnet:
+  - Test-Confidential-Intern
+  - Test-Confidential-Extern
+  - Test-Confidential-Legal
+  - Test-Confidential-Finance
+  - Test-Strictly-Confidential-Intern
+
+Massnahmen:
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+
+2.10 Block Mails from ourside from beeing processed
+---------------------------------------------------
+Zugehoerige Policy:
+AI -All users - Block processing
+
+Bedingungen:
+- Die Nachricht stammt von ausserhalb der Organisation (FromScope: NotInOrganization).
+
+Massnahmen:
+- Zugriff auf das Purview-Portal erzwingen.
+- Warnung erzeugen.
+
+3. Auffaelligkeiten im Export
+=============================
+
+- Die Regel "Sensitiv data block upload to restricted cloud apps" kombiniert mehrere Label-Bedingungen mit ContentIsNotLabeled=true. Diese Logik wirkt widerspruechlich und sollte vor einer produktiven Anpassung bestaetigt werden.
+- Einige Regel- und Policy-Namen enthalten Schreibfehler oder uneinheitliche Schreibweisen (zum Beispiel "labled", "beeing", "ourside", "Sensitiv"). Die Namen wurden zur eindeutigen Zuordnung unveraendert dokumentiert.
+- Die CSV-Spalten ContentContainsSensitiveInformation und Actions sind bei den Regeln leer; die Angaben in diesem Dokument wurden aus ConfigurationJson rekonstruiert.
