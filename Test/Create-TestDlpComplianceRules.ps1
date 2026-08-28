@@ -188,6 +188,7 @@ $rules = @(
             AdvancedRule        = New-AdvancedRule @(
                 (New-LabelCondition -Labels @('Test-Confidential-Intern', 'Test-Confidential-Extern', 'Test-Confidential-Legal', 'Test-Confidential-Finance', 'Test-Strictly-Confidential-Intern'))
             )
+            BlockAccess         = $true
             EnforcePortalAccess = $true
             GenerateAlert       = 'true'
         }
@@ -200,6 +201,7 @@ $rules = @(
             AdvancedRule        = New-AdvancedRule @(
                 @{ ConditionName = 'FromScope'; Value = 'NotInOrganization' }
             )
+            BlockAccess         = $true
             EnforcePortalAccess = $true
             GenerateAlert       = 'true'
         }
@@ -210,9 +212,9 @@ $rules = @(
         Policy     = $endpointPolicy
         Parameters = @{
             AdvancedRule        = New-AdvancedRule @(
-                (New-LabelCondition -Labels @('Test-Confidential-Intern', 'Test-Confidential-Extern', 'Test-Confidential-Legal', 'Test-Confidential-Finance', 'Test-Strictly-Confidential-Intern', 'Test-Strictly-Confidential-Personalized')),
-                @{ ConditionName = 'ContentIsNotLabeled'; Value = $true }
+                (New-LabelCondition -Labels @('Test-Confidential-Intern', 'Test-Confidential-Extern', 'Test-Confidential-Legal', 'Test-Confidential-Finance', 'Test-Strictly-Confidential-Intern', 'Test-Strictly-Confidential-Personalized'))
             )
+            BlockAccess         = $true
             EnforcePortalAccess = $true
             GenerateAlert       = 'true'
         }
