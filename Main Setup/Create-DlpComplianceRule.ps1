@@ -43,8 +43,8 @@
     Erstellt die DLP-Regeln fuer die Produktion mit dem angegebenen UserPrincipalName und speichert die Log-Datei im angegebenen Pfad.
 .NOTES
     Autor: Weissi
-    Version: 1.0
-    Datum: 26.08.2026
+    Version: 1.1
+    Datum: 28.08.2026
 #>
 
 #region Parameters
@@ -161,19 +161,18 @@ $rules = @(
     } },
     [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block labled content from beeing process Confidential Intern up'; Policy = $copilotPolicy; Parameters = @{
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels @('Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')))
-        EnforcePortalAccess = $true; GenerateAlert = 'true'
+        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } },
-	# Copilot: sensible Inhalte und externe Absender melden.
+	# Copilot: sensible Inhalte und externe Absender aktiv blockieren, nicht nur melden.
     [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block Mails from ourside from beeing processed'; Policy = $copilotPolicy; Parameters = @{
         AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'FromScope'; Value = 'NotInOrganization' })
-        EnforcePortalAccess = $true; GenerateAlert = 'true'
+        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } },
     [pscustomobject]@{ Workload = 'Endpoint'; Name = 'Sensitiv data block upload to restricted cloud apps'; Policy = $endpointPolicy; Parameters = @{
         AdvancedRule = New-AdvancedRule @(
             (New-LabelCondition -Labels @('Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized'))
-            @{ ConditionName = 'ContentIsNotLabeled'; Value = $true }
         )
-        EnforcePortalAccess = $true; GenerateAlert = 'true'
+        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } },
 	# Google Workspace: sensible externe Uploads verhindern.
     [pscustomobject]@{ Workload = 'Google Workspace'; Name = 'Block upload to google drive'; Policy = $googleWorkspacePolicy; Parameters = @{
