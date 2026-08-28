@@ -1,251 +1,193 @@
-# Gesamtkonzept: ISO/IEC 27001:2022 in Microsoft Purview
+# ISO/IEC 27001:2022 mit Microsoft Purview — Architekturkonzept für Sensitivity Labeling und DLP
 
-> **Hinweis zum Charakter dieses Dokuments:** Dieses Konzept ist bewusst unabhängig vom aktuellen Implementierungsstand verfasst. Es beschreibt, wie Sensitivity Labels und Data Loss Prevention (DLP) in Microsoft Purview grundsätzlich zur Erfüllung von ISO/IEC 27001:2022 eingesetzt werden können — als Referenzrahmen, nicht als Bestandsaufnahme. Ein Abgleich mit dem tatsächlichen Repo-Stand erfolgt in den separaten Dokumenten unter `Roadmap/`.
-
----
-
-## Kapitel 1: Einleitung und Zielbild
-
-### 1.1 Warum ISO 27001 und Microsoft Purview zusammengehören
-
-ISO/IEC 27001:2022 ist eine Managementnorm. Sie schreibt nicht vor, welches Werkzeug ein Unternehmen einsetzen muss, sondern verlangt einen systematischen, risikobasierten Umgang mit Informationssicherheit — verankert in einem Informationssicherheits-Managementsystem (ISMS). Die Norm selbst ist technologieneutral. Der Anhang A liefert jedoch einen Katalog von 93 Controls, aus denen eine Organisation je nach Risikobewertung eine für sie passende Auswahl trifft (die sogenannte Statement of Applicability, SoA). Ein erheblicher Teil dieser Controls — insbesondere aus dem Themenbereich "Protect Information" — lässt sich in einer Microsoft-365-Umgebung direkt durch Microsoft Purview technisch untermauern.
-
-Der Zusammenhang ist deshalb kein Zufall: ISO 27001 verlangt, dass Informationen klassifiziert (A.5.12), gekennzeichnet (A.5.13) und vor unautorisierter Preisgabe geschützt werden (A.8.12, Data Leakage Prevention). Genau das sind die drei Kernfunktionen von Sensitivity Labels und DLP in Purview. Wo die Norm eine Anforderung formuliert, liefert Purview eine technische Umsetzungsmöglichkeit — vorausgesetzt, sie wird sauber konfiguriert, dokumentiert und in ein Managementsystem eingebettet. Genau hier liegt die größte Fehlerquelle in der Praxis: Unternehmen aktivieren Purview-Funktionen technisch korrekt, versäumen aber die Einbettung in Richtlinien, Rollen und Nachweisprozesse — und scheitern dann nicht an der Technik, sondern am Audit.
-
-### 1.2 Geltungsbereich dieses Konzepts
-
-Dieses Konzept behandelt zwei der am engsten mit ISO 27001 verknüpften Purview-Fähigkeiten:
-
-- **Sensitivity Labels** (Informationsklassifizierung und -kennzeichnung, Zugriffssteuerung über Rights Management Services)
-- **Data Loss Prevention** (Verhinderung von Datenabfluss über die wichtigsten M365- und angebundenen Kanäle)
-
-Angrenzende Purview-Fähigkeiten wie Retention/Records Management, Insider Risk Management, Communication Compliance und eDiscovery werden an den Stellen erwähnt, an denen sie mit Labels/DLP überlappen (z. B. A.8.10 Information Deletion), sind aber nicht der Kernfokus. Sie würden ein eigenständiges Konzept in vergleichbarem Umfang rechtfertigen.
-
-### 1.3 Grundprinzipien, die diesem Konzept zugrunde liegen
-
-Vier Prinzipien ziehen sich durch alle folgenden Kapitel:
-
-**Erstens: Klassifizierung vor Kontrolle.** Ein DLP-Regelwerk, das nicht auf einer durchdachten Klassifizierung aufbaut, wird entweder zu viele Fehlalarme erzeugen oder zu wenig schützen. Die Reihenfolge in der technischen Umsetzung (Kapitel 2) ist deshalb bewusst: zuerst das Klassifizierungsschema, dann die Kennzeichnung, danach erst die Durchsetzung.
-
-**Zweitens: Nachweisbarkeit ist kein Nachtrag.** ISO-27001-Audits scheitern selten an fehlender Technik, sondern an fehlenden Nachweisen, dass die Technik wirksam ist und regelmäßig überprüft wird. Jede technische Maßnahme in Kapitel 2 hat deshalb ein Gegenstück in Kapitel 3.
-
-**Drittens: Technik ohne Governance verfällt.** Eine einmal eingerichtete Sensitivity-Label-Taxonomie, die niemand pflegt, veraltet binnen Monaten. Kapitel 4 beschreibt, wie Verantwortlichkeiten so verteilt werden, dass die Konfiguration lebt statt zu erstarren.
-
-**Viertens: Priorisierung folgt Risiko, nicht Vollständigkeit.** Es ist weder nötig noch sinnvoll, am ersten Tag alle Purview-Fähigkeiten gleichzeitig zu aktivieren. Kapitel 5 liefert ein Reifegradmodell, das eine Organisation von einem Basisschutz zu einem auditreifen Vollausbau führt.
-
-### 1.4 Abgrenzung zu einem reinen Tool-Rollout
-
-Ein häufiges Missverständnis ist, ISO-27001-Konformität mit der bloßen Aktivierung von Purview-Lizenzfunktionen gleichzusetzen. Das ist unzutreffend. Die Norm verlangt in Kapitel 4 bis 10 des Hauptteils (nicht im Anhang A) unter anderem eine Kontextanalyse, eine Risikobewertung, eine Managementbewertung und einen Prozess zur kontinuierlichen Verbesserung. Purview liefert die technischen Bausteine für einen Teil der Anhang-A-Controls — es ersetzt nicht das ISMS als Ganzes. Dieses Konzept ordnet die technischen Bausteine deshalb konsequent in den Kontext von Governance und Audit ein, statt sie isoliert zu betrachten.
+> **Perspektive dieses Dokuments:** Verfasst aus Sicht eines Cloud Security Principal Consultant / Principal Security Cloud Architect. Es beschreibt eine referenzfähige Zielarchitektur — unabhängig vom aktuellen Repo-Implementierungsstand — mit konkreten Baseline-Konfigurationen, Governance-Rollenmodell und einer PIM-Konzeption für Purview-Rollengruppen. Der Abgleich mit dem tatsächlichen Repo-Stand erfolgt weiterhin in `Roadmap/ISO27001-Sensitivity-Labels-DLP-Roadmap.md`.
 
 ---
 
-## Kapitel 2: Technische Umsetzung in Microsoft Purview
+## 1. Auftrag und Architekturprinzipien
 
-### 2.1 Aufbau eines Klassifizierungsschemas (A.5.12)
+### 1.1 Ausgangslage
 
-Der erste Schritt jeder technischen Umsetzung ist die Definition eines Klassifizierungsschemas, das drei Schutzziele abbildet: Vertraulichkeit, Integrität und Verfügbarkeit. In der Praxis dominiert bei den meisten Organisationen die Vertraulichkeitsdimension, weil sie sich am direktesten in Zugriffsrechten ausdrücken lässt — Integrität und Verfügbarkeit werden häufig über andere Kontrollen (Versionierung, Backup, Änderungsmanagement) abgedeckt und im Klassifizierungsschema nur referenziert, nicht dupliziert.
+Ein Unternehmen, das ISO/IEC 27001:2022 anstrebt oder aufrechterhält, muss für die Controls A.5.12 (Classification of Information), A.5.13 (Labelling of Information) und A.8.12 (Data Leakage Prevention) einen belastbaren technischen Nachweis liefern. Microsoft Purview liefert dafuer die Plattform. Die Aufgabe eines Cloud Security Architects ist es, aus der Fülle der Purview-Funktionen eine **Baseline** zu destillieren — eine Mindestkonfiguration, die auditfähig, betreibbar und erweiterbar ist, statt eine Maximalkonfiguration, die niemand pflegen kann.
 
-Ein robustes Schema für eine mittelständische Organisation umfasst typischerweise vier bis fünf Vertraulichkeitsstufen:
+### 1.2 Leitprinzipien der Architektur
 
-- **Öffentlich** — keine Einschränkung, für externe Kommunikation freigegeben
-- **Intern** — nur für Mitarbeitende, keine RMS-Verschlüsselung nötig, aber Kennzeichnung zur Sensibilisierung
-- **Vertraulich** — projekt- oder abteilungsbezogen, mit definiertem Empfängerkreis
-- **Streng vertraulich** — engster Kreis, häufig mit Verschlüsselung und Offline-Zugriffssperre
-- **Optional: Personalisiert** — Empfänger und Schutzumfang werden vom Anwender selbst festgelegt, für Sonderfälle, die sich nicht generisch abbilden lassen
+| Prinzip | Bedeutung für die Umsetzung |
+|---|---|
+| Least Privilege by Design | Jede Purview-Rolle wird so eng wie möglich zugeschnitten; Standing Access wird durch Just-in-Time-Zugriff über PIM ersetzt |
+| Separation of Duties | Wer Labels definiert (Information Owner), ist nicht dieselbe Instanz, die sie technisch implementiert (Purview Administrator) |
+| Defense in Depth | Klassifizierung (Label) + Zugriffssteuerung (RMS) + Durchsetzung (DLP) wirken redundant, nicht nur additiv |
+| Auditability by Default | Jede Konfigurationsänderung ist nachvollziehbar, versioniert und einer Person zuordenbar — nicht nachträglich rekonstruiert |
+| Kein Big-Bang-Rollout | Die Baseline wird stufenweise eingeführt (siehe Abschnitt 6), beginnend mit einem Minimalschema statt einer Vollausstattung |
 
-Innerhalb dieser Stufen empfiehlt sich eine zusätzliche horizontale Gliederung nach Fachbereich (z. B. Recht, Finanzen, Personal), wenn unterschiedliche Empfängerkreise pro Vertraulichkeitsstufe existieren. Technisch wird dies in Purview über Labelgruppen mit Unterlabels abgebildet: eine Gruppe ohne eigene Schutzwirkung, darunter mehrere Unterlabels mit spezifischen Zugriffsrechten.
+### 1.3 Warum eine Baseline, keine Vollkonfiguration
 
-Wichtig für die ISO-Konformität: Das Schema muss dokumentiert sein, bevor es implementiert wird — nicht andersherum. Ein Klassifizierungsschema, das ausschließlich aus dem PowerShell-Code ablesbar ist, erfüllt A.5.12 nicht. Es braucht ein eigenständiges Governance-Dokument (siehe Kapitel 4), das Zweck, Geltungsbereich und die Kriterien für jede Stufe beschreibt.
-
-### 2.2 Kennzeichnung von Informationen (A.5.13)
-
-Purview setzt Kennzeichnung über Sensitivity Labels technisch auf zwei Ebenen um: sichtbar für Menschen (Content-Marking, also Wasserzeichen, Kopf- und Fußzeilen) und maschinenlesbar für Systeme (Metadaten im Dokument, die von DLP-Regeln, Cloud-App-Sicherheitsbrokern und anderen Diensten ausgelesen werden können).
-
-Für die technische Umsetzung sind folgende Bausteine relevant:
-
-**Manuelle Kennzeichnung** über Publishing-Policies, die festlegen, welche Benutzergruppe welche Labels im Office-Client sehen und anwenden darf. Hier ist entscheidend, dass die Publishing-Policy tatsächlich zur organisatorischen Struktur passt — ein häufiger technischer Fehler ist die Verwechslung von Verteilerlisten und Microsoft-365-Gruppen als Zielgruppentyp, was zu einer Policy führt, die zwar angelegt wird, aber nicht wirkt.
-
-**Automatische Kennzeichnung** über Auto-Labeling-Policies, die Inhalte anhand von Mustern (z. B. Kreditkartennummern, Ausweisdaten) automatisch klassifizieren, ohne dass der Anwender aktiv wird. Dies ist der technisch anspruchsvollste, aber auch wirksamste Baustein, weil er nicht von der Mitwirkung der Endanwender abhängt. Auto-Labeling sollte zunächst im Simulationsmodus betrieben werden, um Fehlklassifizierungen zu erkennen, bevor die automatische Anwendung aktiv geschaltet wird.
-
-**Persistenz über den Lebenszyklus.** Ein Label muss erhalten bleiben, wenn ein Dokument kopiert, in ein anderes Format exportiert oder in eine andere Anwendung importiert wird. Purview-Labels sind bei Office-Dateiformaten (docx, xlsx, pptx) und PDF grundsätzlich persistent; bei Formatkonvertierungen in Drittanwendungen oder beim Export aus SharePoint-Listen in andere Systeme ist die Persistenz nicht garantiert und muss im Einzelfall geprüft werden.
-
-### 2.3 Zugriffssteuerung und Nutzungsregeln (A.5.10)
-
-Über Rights Management Services (RMS) lassen sich pro Label konkrete Rechte definieren: Lesen, Bearbeiten, Drucken, Exportieren, Weiterleiten — granular nach Empfängergruppe. Für Stufen mit hohem Schutzbedarf ist zusätzlich die Deaktivierung des Offline-Zugriffs sinnvoll, sodass ein Zugriffsentzug (z. B. bei Ausscheiden eines Mitarbeitenden) sofort wirksam wird, statt erst nach Ablauf eines lokalen Zugriffstokens.
-
-Die Kombination aus Label und RMS-Rechten beantwortet A.5.10 nur teilweise: Die Norm verlangt zusätzlich eine für Endanwender verständliche Nutzungsregel — was darf mit einer als "streng vertraulich" gekennzeichneten Datei technisch und organisatorisch geschehen. Diese Regel muss über die reine RMS-Konfiguration hinaus dokumentiert und geschult werden.
-
-### 2.4 Data Loss Prevention als technische Durchsetzung (A.8.12)
-
-DLP-Regeln in Purview setzen dort an, wo Klassifizierung und Zugriffsrechte allein nicht ausreichen — nämlich beim tatsächlichen Datenfluss. Eine vollständige technische Umsetzung deckt typischerweise folgende Kanäle ab:
-
-- **SharePoint Online und OneDrive for Business** — externe Freigabe von klassifizierten Dokumenten
-- **Exchange Online** — Versand klassifizierter Inhalte per E-Mail, mit Domain-spezifischen Sonderregeln (z. B. für bekannte Consumer-Mail-Anbieter)
-- **Microsoft Teams und Chat-Kanäle** — Freigabe innerhalb und außerhalb von Teams-Unterhaltungen
-- **Endpoint-Geräte** — Kopieren auf Wechseldatenträger, Drucken, Hochladen zu nicht freigegebenen Cloud- oder KI-Anwendungen
-- **Angebundene Cloud-Anwendungen** (über Microsoft Defender for Cloud Apps) — Uploads zu Diensten wie Google Drive oder Dropbox
-- **KI-Anwendungen einschließlich Copilot** — Verarbeitung klassifizierter Inhalte durch generative KI, ein seit 2024/2025 zunehmend audit-relevanter Kanal
-
-Für jede Regel gilt: Die Bedingung (welches Label, welcher Kontext) und die Maßnahme (blockieren, verschlüsseln, warnen, protokollieren) müssen konsistent zur Klassifizierungsstufe stehen. Ein häufiger technischer Fehler ist die Diskrepanz zwischen Regelname und tatsächlicher Konfiguration — eine Regel, die "Block" im Namen trägt, aber technisch nur eine Warnung auslöst, weil der Blockierungsparameter nicht gesetzt wurde. Solche Diskrepanzen sind nicht nur ein Betriebsrisiko, sondern auch ein typischer Audit-Fund, wenn ein Prüfer die Regelkonfiguration im Detail nachvollzieht statt sich auf den Regelnamen zu verlassen.
-
-### 2.5 Automatisierte Klassifizierung durch Sensitive Information Types und Trainable Classifiers
-
-Zwei technische Bausteine erhöhen die Treffsicherheit von DLP-Regeln erheblich und werden im Anhang A implizit vorausgesetzt, wenn von "geeigneten technischen Maßnahmen" gesprochen wird:
-
-**Sensitive Information Types (SITs)** sind musterbasierte Erkennungsregeln (reguläre Ausdrücke, Prüfsummen, Schlüsselwörter in der Nähe eines Musters) für strukturierte Daten wie Kreditkartennummern, Sozialversicherungsnummern oder IBAN. Purview liefert vorgefertigte SITs für viele Länder und Branchen; für organisationsspezifische Datenmuster (z. B. interne Vertragsnummern, Kundennummern) sind Custom SITs erforderlich.
-
-**Trainable Classifiers** erkennen unstrukturierte Inhalte anhand von Beispielen (z. B. Vertragsentwürfe, Bewerbungsunterlagen), nicht anhand fester Muster. Sie benötigen eine Trainingsphase mit positiven und negativen Beispieldokumenten und liefern danach eine Konfidenzbewertung, die in DLP-Regeln als Bedingung verwendet werden kann.
-
-Ohne diese Bausteine bleibt die Klassifizierung stark von der freiwilligen, manuellen Kennzeichnung durch Endanwender abhängig — ein struktureller Schwachpunkt, den Auditoren regelmäßig hinterfragen.
-
-### 2.6 Architekturübersicht: Zusammenspiel der Komponenten
-
-Die technischen Bausteine greifen in einer festen Abhängigkeitsreihenfolge:
-
-1. Sensitivity Labels definieren die Klassifizierungsstufen (Grundlage für alles Weitere)
-2. Publishing-Policies und Auto-Labeling-Policies sorgen für die Anwendung der Labels
-3. Sensitive Information Types und Trainable Classifiers erhöhen die Erkennungsgenauigkeit, sowohl für Auto-Labeling als auch für DLP
-4. DLP-Regeln nutzen Labels und/oder SITs als Bedingung und setzen die eigentliche Schutzmaßnahme durch
-5. RMS-Verschlüsselung wirkt orthogonal dazu direkt auf Dokumentebene, unabhängig vom Übertragungsweg
-
-Ein Rollout, der diese Reihenfolge umkehrt — etwa DLP-Regeln vor einem stabilen Klassifizierungsschema einführt — produziert erfahrungsgemäß hohe Fehlalarmraten und Akzeptanzprobleme bei den Endanwendern.
+Aus Architektursicht ist die größte Fehlerquelle nicht fehlende Technik, sondern überdimensionierte Konfiguration ohne Betriebsmodell dahinter: zu viele Labels, zu viele DLP-Regeln, zu viele Rollenzuweisungen, die niemand mehr überblickt. Die in Abschnitt 2 und 3 definierte Baseline ist deshalb bewusst minimal, aber vollständig genug, um alle drei genannten Controls nachweisbar zu erfüllen.
 
 ---
 
-## Kapitel 3: Audit und Nachweisführung
+## 2. Baseline: Sensitivity Labeling
 
-### 3.1 Was ISO-27001-Auditoren tatsächlich prüfen
+### 2.1 Referenz-Labelschema (Minimalbaseline)
 
-Ein Missverständnis vorweg: Ein ISO-27001-Auditor prüft nicht, ob Microsoft Purview "richtig" konfiguriert ist im Sinne einer Best-Practice-Checkliste. Er prüft, ob die Organisation nachweisen kann, dass sie ihre selbst gesetzten Kontrollen (aus der Statement of Applicability) wirksam umsetzt, überwacht und verbessert. Die technische Konfiguration ist ein Beweismittel, nicht der Prüfgegenstand selbst.
+| Label | Ebene | Vertraulichkeitsstufe | RMS-Schutz | Content-Marking | Publishing-Scope |
+|---|---|---|---|---|---|
+| `Public` | 1 | Öffentlich | Keiner (RemoveProtection) | Fußzeile "Public" | Alle Benutzer |
+| `Internal` | 1 | Intern | Keiner | Fußzeile "Internal" | Alle Benutzer |
+| `Confidential` | 2 (Gruppe) | Vertraulich | — (nur Container) | — | Alle Benutzer |
+| `Confidential \ Anyone (No Restrictions)` | 3 | Vertraulich, unspezifisch | Keiner | Fußzeile "Confidential" | Alle Benutzer |
+| `Confidential \ All Employees` | 3 | Vertraulich, unternehmensweit | RMS: alle Mitarbeitenden, kein Export für Externe | Fußzeile "Confidential — Internal Use Only" | Alle Benutzer |
+| `Highly Confidential` | 2 (Gruppe) | Streng vertraulich | — (nur Container) | — | Eingeschränkt (siehe 2.2) |
+| `Highly Confidential \ All Employees` | 3 | Streng vertraulich, unternehmensweit | RMS: alle Mitarbeitenden, kein Offline-Zugriff | Wasserzeichen + Fußzeile | Eingeschränkt |
+| `Highly Confidential \ Specific People` | 3 | Streng vertraulich, personalisiert | RMS: benutzerdefiniert (`EncryptionPromptUser`) | Wasserzeichen | Eingeschränkt |
 
-Für die im Anhang A relevanten Controls A.5.12, A.5.13 und A.8.12 verlangt ein Auditor typischerweise drei Nachweisebenen:
+Diese acht Labels (zwei reine Gruppen ohne eigene Schutzwirkung, sechs anwendbare Labels) bilden die Referenzbaseline für die meisten mittelständischen Organisationen. Fachbereichsspezifische Unterlabels (Legal, Finance, HR) werden als **Erweiterung**, nicht als Bestandteil der Baseline behandelt — sie erhöhen die Komplexität und sollten erst nach stabiler Baseline ergänzt werden.
 
-**Ebene 1 — Richtliniennachweis:** Existiert ein dokumentiertes, freigegebenes Klassifizierungsschema? Ist es den Mitarbeitenden bekannt gemacht worden (Schulungsnachweis, Kommunikationsnachweis)?
+### 2.2 Zielgruppenzuordnung je Label (Publishing Policy Baseline)
 
-**Ebene 2 — Konfigurationsnachweis:** Entspricht die technische Konfiguration (Labels, Policies, DLP-Regeln) der dokumentierten Richtlinie? Hier wird typischerweise ein Exportbericht aus dem Portal oder aus PowerShell verlangt, der Regelname, Bedingung und Maßnahme im Detail zeigt.
+| Publishing-Policy | Labelumfang | Zielgruppe (Scope-Typ) | Mandatory Labeling | Default-Label |
+|---|---|---|---|---|
+| `PP-AllUsers-Baseline` | Public, Internal, Confidential \ Anyone, Confidential \ All Employees | Exchange: Alle Benutzer | Ja | `Internal` |
+| `PP-Leadership-Extended` | Baseline + Highly Confidential \ All Employees, Highly Confidential \ Specific People | Entra-Sicherheitsgruppe "Leadership" (Modern Group) | Ja | `Confidential \ All Employees` |
 
-**Ebene 3 — Wirksamkeitsnachweis:** Funktioniert die Kontrolle tatsächlich in der Praxis? Hier verlangen Auditoren üblicherweise Stichprobenauswertungen aus dem Aktivitätsprotokoll (Activity Explorer), dokumentierte Testfälle mit erwartetem und tatsächlichem Ergebnis, sowie einen Nachweis über den Umgang mit erkannten Abweichungen.
+Kritischer Architekturhinweis: Die Zielgruppe einer Publishing-Policy muss dem tatsächlichen Objekttyp in Entra ID entsprechen. `ModernGroupLocation` funktioniert ausschließlich mit Microsoft-365-Gruppen; klassische Verteilerlisten und mail-aktivierte Sicherheitsgruppen müssen über `ExchangeLocation` adressiert werden. Diese Verwechslung ist der häufigste technische Konfigurationsfehler bei Purview-Rollouts und führt zu einer Policy, die zwar existiert, aber bei keinem Benutzer wirkt.
 
-### 3.2 Technische Nachweisquellen in Purview
+### 2.3 Technische Konfigurationsparameter je Schutzstufe
 
-Microsoft Purview liefert für jede der drei Ebenen konkrete Werkzeuge:
+| Parameter | Public/Internal | Confidential | Highly Confidential |
+|---|---|---|---|
+| `EncryptionEnabled` | `$false` bzw. `RemoveProtection` | `$false` (Anyone) / `$true` (All Employees) | `$true` |
+| `EncryptionProtectionType` | `RemoveProtection` | `RemoveProtection` / `Template` | `Template` bzw. `UserDefined` |
+| `EncryptionOfflineAccessDays` | n/a | 30 (Standard) | 0 (kein Offline-Zugriff) |
+| `ApplyContentMarkingFooterEnabled` | `$true` | `$true` | `$true` |
+| `ApplyWaterMarkingEnabled` | `$false` | `$false` | `$true` |
+| `ApplyContentMarkingHeaderEnabled` | `$false` | `$false` | Optional, je nach Branchenanforderung |
 
-**Content Explorer** zeigt, wo klassifizierte Inhalte tatsächlich liegen — nach Label, nach Speicherort, nach SIT-Treffer. Dies ist der zentrale Nachweis für A.5.12 (Ist die Klassifizierung flächendeckend angewendet?) und für die im Compliance Manager als "View your sensitive data natively" bezeichnete Fähigkeit.
+### 2.4 Auto-Labeling-Baseline
 
-**Activity Explorer** protokolliert, welche Aktion (Anwendung, Entfernung, Änderung eines Labels; DLP-Regel-Treffer) zu welchem Zeitpunkt durch welchen Benutzer erfolgt ist. Dies ist der zentrale Wirksamkeitsnachweis für A.8.12.
+| Auto-Labeling-Policy | Erkennungsmuster | Zielort | Aktion | Modus |
+|---|---|---|---|---|
+| `AL-PII-Baseline` | Vorgefertigte SITs: Kreditkartennummer, IBAN, nationale ID-Nummern | Exchange, SharePoint, OneDrive | Label `Confidential \ All Employees` anwenden | Simulation zuerst, danach Auto-Apply |
+| `AL-Keywords-HighlyConfidential` | Custom SIT: unternehmensspezifische Schlüsselbegriffe (z. B. "Strategieentwurf", "M&A") | SharePoint, OneDrive | Label `Highly Confidential \ All Employees` anwenden | Simulation zuerst, danach Auto-Apply |
 
-**DLP-Alerts und Incident Reports** liefern die operative Reaktionskette: Erkennung, Benachrichtigung, gegebenenfalls Eskalation. Für den Auditor ist relevant, dass diese Kette nicht nur technisch existiert, sondern dass tatsächlich jemand die Alerts bearbeitet — ein reines "Alert wird generiert, aber nie gesichtet"-Muster gilt als unwirksame Kontrolle.
-
-**Microsoft Purview Compliance Manager** aggregiert Improvement Actions mit Punktbewertung und teilweise automatisierten Tests. Er ist ein nützliches Ausgangsdokument für die Gap-Analyse, ersetzt aber nicht die eigene Nachweisführung, weil die Punktbewertung eine Microsoft-eigene Heuristik ist, kein Ersatz für die im ISMS dokumentierte Risikobewertung.
-
-**PowerShell-Exportberichte** (z. B. Get-Label, Get-DlpCompliancePolicy, Get-DlpComplianceRule) liefern einen versionierbaren, zeitgestempelten Konfigurationsnachweis, der sich in ein Dokumentenmanagementsystem einspeisen lässt und damit auditfähig ist.
-
-### 3.3 Der Audit-Trail als roter Faden
-
-Ein wirksamer Audit-Trail verknüpft alle drei Ebenen durchgängig: Die Richtlinie verweist auf die Controls, die Konfiguration verweist auf die Richtlinie, und die Wirksamkeitsnachweise verweisen auf die Konfiguration. In der Praxis bedeutet das: Jedes Sensitivity Label sollte in der Richtliniendokumentation mit seinem Namen exakt so referenziert werden, wie es im System heißt — Abweichungen zwischen Dokumentationsnamen und Systemnamen sind ein klassischer, leicht vermeidbarer Audit-Fund.
-
-### 3.4 Umgang mit Abweichungen und Nichtkonformitäten
-
-ISO 27001 verlangt in Kapitel 10.2 einen dokumentierten Prozess für den Umgang mit Nichtkonformitäten. Für Purview-Kontrollen bedeutet das konkret: Wenn eine DLP-Regel nicht wie beabsichtigt wirkt (z. B. weil ein Blockierungsparameter fehlt, wie es in der Praxis bei Copilot- oder Endpoint-Regeln vorkommen kann), muss dies als Abweichung dokumentiert, korrigiert und die Korrektur nachvollziehbar protokolliert werden — nicht einfach stillschweigend gepatcht. Ein Änderungsprotokoll für sicherheitsrelevante Purview-Konfigurationen (wer hat wann was aus welchem Grund geändert) ist damit selbst ein Audit-relevantes Artefakt.
-
-### 3.5 Interne Audits als Vorbereitung
-
-Vor einem externen Zertifizierungsaudit sollte ein interner Auditzyklus (Kapitel 9.2 der Norm) mindestens einmal jährlich die drei Nachweisebenen durchlaufen. Für Sensitivity Labels und DLP bedeutet das praktisch: Export der aktuellen Konfiguration, Abgleich mit der dokumentierten Richtlinie, Stichprobenprüfung im Activity Explorer, und Dokumentation etwaiger Abweichungen inklusive Korrekturmaßnahmen mit Termin und Verantwortlichem.
-
----
-
-## Kapitel 4: Governance
-
-### 4.1 Rollen im ISMS-Kontext
-
-Eine wirksame Governance-Struktur für Sensitivity Labels und DLP benötigt mindestens folgende Rollen, die nicht notwendigerweise unterschiedliche Personen sein müssen, aber unterschiedliche Verantwortlichkeiten tragen:
-
-**Informationssicherheitsbeauftragter (ISB) / ISMS-Verantwortlicher** — trägt die Gesamtverantwortung für die Einhaltung der Norm, genehmigt das Klassifizierungsschema formal, verantwortet die Risikobewertung, aus der sich die Auswahl der Controls (SoA) ableitet.
-
-**Information Owner je Klassifizierungsstufe oder Fachbereich** — typischerweise die Leitung von Recht, Finanzen oder vergleichbaren Fachbereichen; entscheidet, wer Zugriff auf Inhalte der jeweiligen Stufe erhält, und ist Ansprechpartner bei Zweifelsfällen in der Klassifizierung.
-
-**Technischer Verantwortlicher (Purview-Administrator)** — setzt die von ISB und Information Owner freigegebenen Anforderungen technisch um, pflegt Labels, Policies und DLP-Regeln, führt die in Kapitel 3 beschriebenen Exporte und Prüfungen durch.
-
-**Endanwender** — verantwortlich für korrekte manuelle Klassifizierung, soweit keine Automatisierung greift; benötigt Schulung und klare, kurze Handlungsanweisungen statt der vollständigen technischen Dokumentation.
-
-### 4.2 Richtlinienhierarchie
-
-Governance funktioniert nur mit einer klaren Dokumentenhierarchie, die typischerweise dreistufig aufgebaut ist:
-
-**Ebene 1 — Informationssicherheitsrichtlinie (Policy):** Ein kurzes, von der Leitung unterzeichnetes Dokument, das die grundsätzliche Verpflichtung zur Klassifizierung und zum Schutz von Informationen festlegt. Es verweist auf die nachgeordneten Dokumente, enthält aber selbst keine technischen Details.
-
-**Ebene 2 — Klassifizierungs- und Kennzeichnungsrichtlinie (Standard):** Beschreibt das konkrete Stufenmodell, die Kriterien für jede Stufe, die zulässigen Freigabewege je Stufe und die Verantwortlichkeiten der Information Owner. Dieses Dokument ist die fachliche Brücke zwischen Norm und Technik und sollte in für Fachbereiche verständlicher Sprache verfasst sein, nicht in PowerShell-Syntax.
-
-**Ebene 3 — Technische Arbeitsanweisung (Verfahren):** Beschreibt, wie die Richtlinie technisch umgesetzt wird — welche Labels, Policies und DLP-Regeln existieren, wie sie geändert werden dürfen, und welcher Freigabeprozess für Änderungen gilt. Diese Ebene entspricht inhaltlich dem, was in einem Skript-Repository technisch dokumentiert wird.
-
-Ein häufiger Governance-Fehler ist es, direkt mit Ebene 3 zu beginnen, weil sie am konkretesten und am schnellsten umsetzbar erscheint. Ohne Ebene 1 und 2 fehlt der Konfiguration jedoch die normative Verankerung, die ein Auditor als Erstes sucht.
-
-### 4.3 Freigabe- und Änderungsprozess
-
-Jede Änderung an Labels, Publishing-Policies oder DLP-Regeln sollte einem definierten Freigabeprozess folgen: Antrag (wer möchte was ändern und warum), fachliche Prüfung (Information Owner bestätigt Konformität mit der Klassifizierungsrichtlinie), technische Umsetzung (Purview-Administrator), und Dokumentation der Änderung inklusive Datum, Verantwortlichem und Begründung. Dieser Prozess muss nicht schwergewichtig sein — für kleinere Organisationen reicht ein einfaches, versioniertes Änderungsprotokoll — aber er muss existieren und tatsächlich befolgt werden.
-
-### 4.4 Kontinuierliche Verbesserung (PDCA)
-
-ISO 27001 basiert auf dem Plan-Do-Check-Act-Zyklus. Für Sensitivity Labels und DLP bedeutet das konkret:
-
-**Plan:** Jährliche oder anlassbezogene Überprüfung, ob das Klassifizierungsschema noch zur Risikolage passt (neue Datenkategorien, neue gesetzliche Anforderungen, organisatorische Änderungen).
-
-**Do:** Umsetzung der beschlossenen Anpassungen nach dem in 4.3 beschriebenen Freigabeprozess.
-
-**Check:** Die in Kapitel 3 beschriebenen internen Audits und Wirksamkeitsprüfungen.
-
-**Act:** Korrekturmaßnahmen bei festgestellten Abweichungen, mit Nachverfolgung bis zur tatsächlichen Behebung.
-
-Governance ohne diesen Zyklus verkommt zu einer einmaligen Einrichtung, die mit der Zeit von der tatsächlichen Risikolage abweicht — technisch weiterhin "funktionsfähig", aber normativ nicht mehr belastbar.
-
-### 4.5 Schulung und Sensibilisierung
-
-A.6.3 (Awareness, Education and Training) verlangt, dass Mitarbeitende ihre Verantwortung im Umgang mit klassifizierten Informationen verstehen. Für Sensitivity Labels bedeutet das praktisch: kurze, rollenspezifische Schulungsinhalte (was bedeutet dieses Label, was darf ich damit tun, was nicht), nicht die vollständige technische Dokumentation. Schulungsnachweise (Teilnahmelisten, Wissensüberprüfungen) sind selbst ein Audit-relevantes Artefakt für A.5.12 und A.5.13.
+Architekturregel: Jede Auto-Labeling-Policy durchläuft zwingend eine mindestens zweiwöchige Simulationsphase, bevor sie auf "Auto-Apply" umgeschaltet wird. Ohne diese Phase entstehen in der Praxis regelmäßig großflächige Fehlklassifizierungen, die das Vertrauen der Endanwender in das gesamte Klassifizierungssystem beschädigen.
 
 ---
 
-## Kapitel 5: Priorisierung und Reifegradmodell
+## 3. Baseline: Data Loss Prevention
 
-### 5.1 Warum ein Reifegradmodell sinnvoller ist als eine lineare Roadmap
+### 3.1 Referenz-Policy-Struktur
 
-Eine rein lineare Roadmap ("erst A, dann B, dann C") suggeriert einen Endzustand, der bei einem Managementsystem wie ISO 27001 so nicht existiert — die Norm verlangt kontinuierliche Verbesserung, nicht einen fixen Zielzustand. Sinnvoller ist ein Reifegradmodell mit mehreren Stufen, zwischen denen eine Organisation sich je nach Risikoexposition und Ressourcenlage bewegt.
+| DLP-Policy | Workload | Geltungsbereich | Zweck |
+|---|---|---|---|
+| `DLP-SPO-ODB-ExternalSharing` | SharePoint, OneDrive | Alle Standorte | Kontrolle externer Freigabe klassifizierter Inhalte |
+| `DLP-EXO-ExternalMail` | Exchange Online | Alle Postfächer | Kontrolle externer E-Mail-Versand klassifizierter Inhalte |
+| `DLP-Endpoint-DeviceControl` | Windows-/macOS-Endpunkte | Onboarded Devices (siehe 4.3) | Kontrolle von Wechseldatenträgern, Druck, Zwischenablage |
+| `DLP-CloudApps-Unsanctioned` | Cloud-App-Sicherheit (Defender for Cloud Apps) | Alle Benutzer | Kontrolle des Uploads zu nicht freigegebenen Cloud-Diensten |
+| `DLP-AI-Copilot` | Microsoft 365 Copilot, KI-Apps | Alle Benutzer | Kontrolle der Verarbeitung klassifizierter Inhalte durch generative KI |
+| `DLP-PCI-DSS-Default` | Exchange, SharePoint, OneDrive | Alle Standorte | Microsoft-Default-Template für Zahlungskartendaten (nur falls anwendbar) |
 
-### 5.2 Reifegradstufen für Sensitivity Labels und DLP
+### 3.2 Regel-Baseline je Policy (Kernregeln, keine Vollständigkeit)
 
-**Stufe 0 — Nicht vorhanden:** Keine Klassifizierung, keine DLP-Kontrollen. Ausgangspunkt vieler Organisationen vor einem ISO-Projekt.
+| Policy | Regelname | Bedingung | Aktion | Priorität |
+|---|---|---|---|---|
+| `DLP-SPO-ODB-ExternalSharing` | `Block-HighlyConfidential-External` | Label = Highly Confidential UND Zugriff außerhalb Organisation | `BlockAccess = $true`, Alert, Incident Report | Kritisch |
+| `DLP-SPO-ODB-ExternalSharing` | `Block-Confidential-External` | Label = Confidential UND Zugriff außerhalb Organisation | `BlockAccess = $true`, Alert | Hoch |
+| `DLP-EXO-ExternalMail` | `Encrypt-Confidential-External` | Label = Confidential \ All Employees UND Empfänger extern | RMS-Verschlüsselung, Policy Tip, `StopPolicyProcessing = $true` | Hoch |
+| `DLP-EXO-ExternalMail` | `Block-HighlyConfidential-External` | Label = Highly Confidential UND Empfänger extern | `BlockAccess = $true`, Alert, Incident Report | Kritisch |
+| `DLP-Endpoint-DeviceControl` | `Block-Confidential-USBCopy` | Label ≥ Confidential UND Zielgerät = Wechseldatenträger | `BlockAccess = $true` (oder Audit-Only in Pilotphase) | Hoch |
+| `DLP-CloudApps-Unsanctioned` | `Block-Confidential-UnsanctionedUpload` | Label ≥ Confidential UND Zielanwendung nicht freigegeben | `BlockAccess = $true`, Alert | Hoch |
+| `DLP-AI-Copilot` | `Block-Confidential-CopilotProcessing` | Label ≥ Confidential | `BlockAccess = $true`, Alert | Kritisch |
 
-**Stufe 1 — Basisschutz:** Ein einfaches, wenige Stufen umfassendes Klassifizierungsschema ist eingeführt und wird manuell angewendet. Grundlegende DLP-Regeln für die offensichtlichsten Risiken (z. B. externe Freigabe vertraulicher Dokumente) sind aktiv. Dokumentation existiert, ist aber noch nicht formal durch die Leitung freigegeben.
+Architekturhinweis zur Regelqualität: Jede Regel, deren Name eine Blockierung suggeriert ("Block-…"), muss zwingend `BlockAccess = $true` gesetzt haben. Diese Konsistenzprüfung sollte Teil jeder technischen Abnahme sein — eine Diskrepanz zwischen Regelname und tatsächlicher Aktion ist der häufigste Einzelfund in technischen Purview-Reviews.
 
-**Stufe 2 — Strukturierter Schutz:** Das Klassifizierungsschema ist formal freigegeben (Ebene 1 und 2 der Richtlinienhierarchie existieren). DLP deckt die wichtigsten Kanäle ab (SharePoint/OneDrive, Exchange, mindestens einen weiteren Kanal). Erste Custom Sensitive Information Types ergänzen die reine Label-basierte Erkennung. Ein Änderungsprotokoll für Konfigurationsänderungen existiert.
+### 3.3 Priorisierung und Regelverarbeitung
 
-**Stufe 3 — Automatisiert und überwacht:** Auto-Labeling-Policies reduzieren die Abhängigkeit von manueller Klassifizierung. DLP deckt praktisch alle relevanten Kanäle ab, einschließlich Endpoint und KI-Anwendungen. Ein wiederkehrender, terminierter Prüfzyklus (mindestens jährlich, idealerweise quartalsweise) mit dokumentierten Ergebnissen ist etabliert. Content Explorer und Activity Explorer werden aktiv für Nachweiszwecke genutzt.
+DLP-Regeln in Purview werden in Prioritätsreihenfolge innerhalb einer Policy verarbeitet. Kritische Blockierungsregeln (Highly Confidential nach außen) müssen vor generischeren Regeln (Confidential nach außen) stehen und `StopPolicyProcessing` setzen, wo eine nachgelagerte, weniger strenge Regel sonst fälschlich zusätzlich greifen würde.
 
-**Stufe 4 — Auditreif und kontinuierlich verbessert:** Alle drei Nachweisebenen aus Kapitel 3 sind lückenlos dokumentiert. Interne Audits finden regelmäßig statt und führen nachweislich zu Korrekturmaßnahmen. Trainable Classifiers ergänzen die musterbasierte Erkennung für unstrukturierte Inhalte. Die Governance-Struktur aus Kapitel 4 ist vollständig etabliert, einschließlich regelmäßiger Schulungen.
+---
 
-### 5.3 Priorisierungslogik zwischen den Stufen
+## 4. Governance: Rollenmodell und PIM-Konzeption
 
-Der Übergang zwischen den Stufen sollte nicht nach technischer Attraktivität, sondern nach Risikoreduktion pro Aufwand priorisiert werden. Drei Faustregeln haben sich in der Praxis bewährt:
+### 4.1 Rollenmodell — Übersicht
 
-**Erstens: Governance vor Automatisierung.** Eine formal freigegebene, aber technisch noch einfache Klassifizierung (Stufe 2) ist auditfähiger als eine hochautomatisierte, aber nicht formal verankerte Konfiguration (technisch Stufe 3, governance-seitig aber noch Stufe 1). Der Sprung von Stufe 1 zu 2 sollte deshalb in der Regel vor dem Sprung zu Stufe 3 priorisiert werden, selbst wenn Letzterer technisch reizvoller erscheint.
+| Rolle | ISMS-Funktion | Purview-Rollengruppe (nativ) | Verantwortung |
+|---|---|---|---|
+| ISMS-Verantwortlicher (ISB) | Gesamtverantwortung Informationssicherheit | Kein technischer Zugriff notwendig | Freigabe Klassifizierungsrichtlinie, Risikobewertung, SoA-Pflege |
+| Information Owner (je Fachbereich) | Fachliche Freigabe von Zugriffsregeln | `Information Protection Admins` (nur lesend, Genehmigung außerhalb Purview) | Entscheidung über Empfängerkreise je Label |
+| Purview Compliance Architect | Technisches Design der Gesamtkonfiguration | `Compliance Administrator` | Konzeption von Labels, Policies, DLP-Regeln (Design, nicht zwingend Implementierung) |
+| Purview Operator (Information Protection) | Operative Pflege von Labels und Publishing-Policies | `Information Protection Admins` | Anlegen/Ändern von Labels und Publishing-Policies gemäß freigegebenem Design |
+| Purview Operator (DLP) | Operative Pflege von DLP-Regeln | `Compliance Data Administrator` + `Information Protection Investigators` (für Alert-Bearbeitung) | Anlegen/Ändern von DLP-Regeln, Bearbeitung von Alerts |
+| Auditor / Reviewer | Nachweisprüfung ohne Änderungsrecht | `Global Reader` bzw. `Security Reader` | Lesender Zugriff auf Konfiguration und Audit-Log für interne/externe Audits |
 
-**Zweitens: Kanalabdeckung nach Risikoexposition.** Nicht jede Organisation muss sofort alle denkbaren DLP-Kanäle abdecken. Der Kanal mit der höchsten tatsächlichen Nutzung und dem höchsten Schadenspotenzial (in vielen Organisationen: externe Dateifreigabe und E-Mail) sollte vor selteneren Kanälen (z. B. Wechseldatenträger in einer Cloud-first-Organisation ohne nennenswerte lokale Gerätenutzung) priorisiert werden.
+### 4.2 Warum native Purview-Rollengruppen und nicht Direktzuweisung
 
-**Drittens: Nachweisfähigkeit vor Vollständigkeit.** Ein Prüfzyklus, der drei Kontrollen lückenlos nachweist, ist wertvoller für ein Audit als zehn Kontrollen ohne jeden Wirksamkeitsnachweis. Die Investition in Nachweisprozesse (Kapitel 3) sollte deshalb nicht als letzter Schritt, sondern parallel zur technischen Erweiterung erfolgen.
+Microsoft Purview verwendet ein eigenes RBAC-Modell mit rollenbasierten Rollengruppen (z. B. `Information Protection Admins`, `Compliance Administrator`, `Compliance Data Administrator`), die getrennt von den globalen Entra-ID-Rollen wie "Compliance Administrator" (Entra-Rolle) verwaltet werden — trotz teilweise identischer Namen sind das zwei verschiedene Objekte in zwei verschiedenen Verwaltungsebenen. Architektonisch gilt: Zugriff wird niemals direkt an einzelne Benutzerkonten vergeben, sondern ausschließlich über Sicherheitsgruppen, die Mitglied der jeweiligen Purview-Rollengruppe sind. Das ist die Voraussetzung für die PIM-Integration in Abschnitt 4.3.
 
-### 5.4 Abhängigkeiten zwischen den Bausteinen
+### 4.3 PIM-Konzeption für Purview-Rollengruppen
 
-Bestimmte technische Bausteine setzen andere voraus und sollten nicht isoliert priorisiert werden:
+Microsoft Purview-native Rollengruppen können nicht direkt in Privileged Identity Management (PIM) für Microsoft-Entra-Rollen verwaltet werden — PIM für Entra-Rollen deckt nur die globalen Entra-ID-Rollen ab (z. B. die Entra-Rolle "Compliance Administrator"), nicht die Purview-internen Rollengruppen. Der architektonisch korrekte Weg führt über **PIM für Gruppen** (PIM for Groups):
 
-- Auto-Labeling-Policies setzen ein stabiles, bereits manuell erprobtes Klassifizierungsschema voraus — ihre vorzeitige Einführung ohne diese Grundlage führt zu systematischen Fehlklassifizierungen in großem Maßstab.
-- Custom Sensitive Information Types sollten vor einer Ausweitung der DLP-Kanalabdeckung stehen, weil sie die Erkennungsgenauigkeit für alle nachfolgenden Kanäle gleichermaßen verbessern.
-- Ein Prüfzyklus (Stufe 3) setzt voraus, dass überhaupt exportierbare, vergleichbare Konfigurationsdaten vorliegen — das heißt, mindestens Stufe 2 mit dokumentierter Ausgangskonfiguration muss erreicht sein, bevor ein sinnvoller Wirksamkeitsvergleich über Zeit möglich ist.
+**Schritt 1 — Rollenfähige Sicherheitsgruppe anlegen.** In Entra ID wird für jede Purview-Rollengruppe aus Abschnitt 4.1 eine dedizierte, rollenfähige Sicherheitsgruppe erstellt (Option "Microsoft Entra roles can be assigned to the group" aktiviert), z. B. `PIM-Purview-InfoProtectionAdmins`, `PIM-Purview-ComplianceDataAdmins`.
 
-### 5.5 Zeitliche Einordnung
+**Schritt 2 — Gruppe der Purview-Rollengruppe zuweisen.** Im Purview-Compliance-Portal unter *Settings > Roles and scopes > Role groups* wird die neu erstellte Entra-Sicherheitsgruppe als Mitglied der entsprechenden nativen Purview-Rollengruppe hinzugefügt. Diese Zuordnung ist eine dauerhafte, aktive Mitgliedschaft — sie wird nicht über PIM verwaltet, sondern die *Mitgliedschaft in der Entra-Gruppe* wird über PIM zeitlich begrenzt.
 
-Als grobe Orientierung, ohne einzelne Organisationen exakt zu binden: Der Übergang von Stufe 0 zu Stufe 2 ist bei fokussiertem Einsatz innerhalb einiger Monate erreichbar, da er primär organisatorische Klärung und eine überschaubare technische Grundkonfiguration erfordert. Der Übergang zu Stufe 3 erfordert typischerweise eine Testphase für Auto-Labeling und eine sukzessive Ausweitung der DLP-Kanäle und beansprucht entsprechend mehr Zeit. Stufe 4 ist kein einmalig erreichbarer Zustand, sondern das Ergebnis mindestens eines vollständig durchlaufenen internen Audit- und Verbesserungszyklus — sie wird typischerweise erst im zweiten Jahr nach Einführung eines ISMS belastbar erreicht.
+**Schritt 3 — Gruppe für PIM onboarden.** Im Entra Admin Center unter *Identity Governance > Privileged Identity Management > Groups* wird die Gruppe über "Discover groups" gefunden und mit "Manage groups" für PIM aktiviert. Dieser Schritt ist **unumkehrbar** — eine einmal für PIM onboardete Gruppe kann nicht wieder aus PIM entfernt werden, was bei der Namensgebung und Gruppenstruktur von vornherein berücksichtigt werden muss.
+
+**Schritt 4 — Rolleneinstellungen konfigurieren.** Für jede PIM-Gruppe werden Aktivierungsdauer (empfohlen: 4–8 Stunden), MFA-Pflicht bei Aktivierung, Begründungspflicht und optional ein Genehmigungsworkflow (zusätzlicher Genehmiger bei kritischen Rollen wie `Compliance Data Administrator`) festgelegt.
+
+**Schritt 5 — Eligible Assignments vergeben.** Unter *Assignments > Add assignments* wird für jeden berechtigten Benutzer eine "Eligible"-Zuweisung zur Mitgliedschaft (nicht Eigentumerschaft) der Gruppe vorgenommen. Der Benutzer selbst aktiviert bei Bedarf seine Mitgliedschaft über das PIM-Portal, wodurch er zeitlich begrenzt Mitglied der Gruppe und damit funktional Mitglied der Purview-Rollengruppe wird.
+
+### 4.4 Kritischer Betriebshinweis: Synchronisationsverzögerung
+
+Ein für die Betriebsplanung entscheidender Architekturaspekt: Nach Aktivierung der PIM-Gruppenmitgliedschaft vergehen laut Microsoft-Dokumentation und Praxiserfahrung **bis zu zwei Stunden**, bis die Berechtigung tatsächlich in Purview wirksam wird — die Synchronisationskette verläuft von PIM über Entra ID und Exchange Online bis zur Compliance-Portal-Berechtigung. Dies ist **kein Just-in-Time-Zugriff im engeren Sinne**, sondern eine zeitversetzte, aber dennoch zeitlich begrenzte Berechtigung. Diese Verzögerung muss in Notfallprozessen (z. B. Incident-Response bei einem DLP-Vorfall) explizit berücksichtigt werden — für zeitkritische Reaktionen sollte mindestens eine Rolle mit kürzerer oder aktiver (nicht eligible) Zuweisung als Eskalationspfad vorgesehen werden.
+
+### 4.5 PIM-Rollenmatrix (Zusammenfassung)
+
+| PIM-Gruppe | Zugeordnete Purview-Rollengruppe | Aktivierungsdauer | MFA bei Aktivierung | Genehmigung erforderlich |
+|---|---|---|---|---|
+| `PIM-Purview-InfoProtectionAdmins` | Information Protection Admins | 8 Stunden | Ja | Nein |
+| `PIM-Purview-ComplianceDataAdmins` | Compliance Data Administrator | 4 Stunden | Ja | Ja (zweiter Genehmiger) |
+| `PIM-Purview-InfoProtectionInvestigators` | Information Protection Investigators | 8 Stunden | Ja | Nein |
+| `PIM-Purview-ComplianceAdmin` | Compliance Administrator | 4 Stunden | Ja | Ja (zweiter Genehmiger) |
+| `PIM-Purview-SecurityReader` | Security Reader / Global Reader | 24 Stunden (lesend, geringeres Risiko) | Ja | Nein |
+
+---
+
+## 5. Governance: Richtlinienhierarchie und Freigabeprozess
+
+### 5.1 Dreistufige Dokumentenhierarchie
+
+| Ebene | Dokumenttyp | Inhalt | Freigabeinstanz |
+|---|---|---|---|
+| 1 | Informationssicherheitsrichtlinie | Grundsätzliche Verpflichtung zur Klassifizierung | Geschäftsführung |
+| 2 | Klassifizierungs- und Kennzeichnungsstandard | Konkretes Stufenmodell aus Abschnitt 2.1, Kriterien je Stufe | ISMS-Verantwortlicher, Information Owner |
+| 3 | Technische Arbeitsanweisung | Konkrete Label-/Policy-/DLP-Konfiguration wie in Abschnitt 2 und 3 | Purview Compliance Architect |
+
+### 5.2 Änderungsfreigabeprozess (RACI)
+
+| Aktivität | Information Owner | Purview Compliance Architect | Purview Operator | ISMS-Verantwortlicher |
+|---|---|---|---|---|
+| Neues Label anfordern | Responsible | Consulted | Informed | Accountable |
+| Label technisch umsetzen | Informed | Accountable | Responsible | Informed |
+| DLP-Regel ändern | Consulted | Accountable | Responsible | Informed |
+| PIM-Rolleneinstellung ändern | Informed | Consulted | Informed | Accountable |
+| Jährliche Wirksamkeitsprüfung | Consulted | Responsible | Consulted | Accountable |
+
+---
+
+## 6. Stufenweise Einführung der Baseline
+
+| Phase | Inhalt | Voraussetzung |
+|---|---|---|
+| Phase 1 | Labelschema aus Abschnitt 2.1 (ohne Auto-Labeling), Publishing-Policy-Baseline aus 2.2 | Klassifizierungsstandard (Ebene 2) freigegeben |
+| Phase 2 | DLP-Baseline aus Abschnitt 3.1/3.2 für SPO/ODB und Exchange | Phase 1 stabil, mindestens 4 Wochen Betrieb ohne größere Fehlklassifizierung |
+| Phase 3 | Rollenmodell und PIM-Konzeption aus Abschnitt 4 einführen | Phase 1 und 2 etabliert; Entra-ID-P2-Lizenzierung für PIM vorhanden |
+| Phase 4 | Auto-Labeling (Abschnitt 2.4), Endpoint- und Cloud-App-DLP, KI-/Copilot-DLP | Phase 1–3 stabil und auditiert |
+| Phase 5 | PCI-DSS-Default-Policy (nur falls zutreffend), branchenspezifische Erweiterungen | Regulatorische Anwendbarkeit bestätigt |
 
 ---
 
 ## Zusammenfassung
 
-Dieses Konzept verknüpft vier Perspektiven, die in der Praxis zu oft getrennt behandelt werden: die technische Machbarkeit in Microsoft Purview, die Nachweislogik, die ein Auditor tatsächlich erwartet, die organisatorische Verankerung durch Governance, und eine risikobasierte statt rein technikgetriebene Priorisierung. Der zentrale Grundsatz, der alle Kapitel verbindet, lautet: Technische Konfiguration in Purview ist notwendig, aber nicht hinreichend für ISO-27001-Konformität. Erst die Kombination aus dokumentiertem Klassifizierungsschema, konsistenter technischer Umsetzung, lückenloser Nachweisführung und gelebter Governance macht aus einer funktionierenden IT-Lösung ein auditfähiges Managementsystem.
+Diese Baseline liefert einem Cloud Security Architect eine vollständige, aber bewusst schlanke Referenzkonfiguration: acht Sensitivity Labels, sechs DLP-Policies mit klar definierten Kernregeln, ein Rollenmodell mit sechs klar getrennten Verantwortlichkeiten, und eine PIM-Konzeption, die native Purview-Rollengruppen über rollenfähige Entra-Sicherheitsgruppen just-in-time verwaltbar macht. Der entscheidende Architekturgrundsatz bleibt: Technische Konfiguration, Rollenmodell und Governance-Dokumentation müssen als ein zusammenhängendes System geplant werden — nicht als drei unabhängige Projekte, die zufällig dieselbe Plattform nutzen.
