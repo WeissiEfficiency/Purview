@@ -30,27 +30,27 @@ function Write-Log {
 $policies = @(
     [pscustomobject]@{
         Name          = 'Policy All, no Standard, No Inheritence'
-        Labels        = @('Test-General', 'Test-General-Intern', 'Test-General-Extern', 'Test-Confidential', 'Test-Confidential-Intern', 'Test-Confidential-Extern', 'Test-Strictly-Confidential', 'Test-Strictly-Confidential-Personalized')
+        Labels        = @('Public', 'General', 'General-Intern', 'General-Extern', 'Confidential', 'Confidential-Intern', 'Confidential-Extern', 'Strictly-Confidential', 'Strictly-Confidential-Personalized')
         Exchange      = @('All')
         Settings      = @{ requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
     [pscustomobject]@{
         Name          = 'Legal, Intern Standard, Highest Inheritence for Mails'
-        Labels        = @('Test-General', 'Test-General-Intern', 'Test-Confidential', 'Test-Confidential-Legal')
+        Labels        = @('Public', 'General', 'General-Intern', 'Confidential', 'Confidential-Legal')
         ModernGroups  = @('LegalTeam@M365DS410216.onmicrosoft.com')
-        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'Test-General-Intern'; defaultlabelid = 'Test-General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
     [pscustomobject]@{
         Name          = 'Finance, Confidential Intern, Perdefinded but Inheritence'
-        Labels        = @('Test-Confidential', 'Test-Confidential-Intern', 'Test-Confidential-Finance')
+        Labels        = @('Public', 'Confidential', 'Confidential-Intern', 'Confidential-Finance')
         ModernGroups  = @('FinanceTeam@M365DS410216.onmicrosoft.com')
-        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'Test-Confidential-Intern'; defaultlabelid = 'Test-Confidential-Intern'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'Confidential-Intern'; defaultlabelid = 'Confidential-Intern'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
     [pscustomobject]@{
         Name          = 'Leadership, Intern , Inheritence'
-        Labels        = @('Test-General', 'Test-General-Intern', 'Test-Confidential', 'Test-Confidential-Legal', 'Test-Confidential-Finance', 'Test-Strictly-Confidential', 'Test-Strictly-Confidential-Intern')
+        Labels        = @('Public', 'General', 'General-Intern', 'Confidential', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential', 'Strictly-Confidential-Intern')
         ModernGroups  = @('Leadership@m365ds410216.onmicrosoft.com')
-        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'Test-General-Intern'; defaultlabelid = 'Test-General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     }
 )
 
