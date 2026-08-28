@@ -22,7 +22,7 @@ Grundlage:
 | Legal-Zielgruppe | `LegalTeam@M365DS410216.onmicrosoft.com`, mailfähige Verteilergruppe |
 | Leadership-Zielgruppe | `Leadership@m365ds410216.onmicrosoft.com`, private Microsoft-365-Gruppe |
 
-> **Technischer Prüfpunkt:** Die Publishing-Policies verwenden für Finance und Legal `ModernGroupLocation`. Im Tenant sind diese beiden Ziele klassische Verteilergruppen. Vor produktiver Erstellung muss die Zielgruppenart bestätigt oder die Policy angepasst werden.
+> **Behoben (28.08.2026):** Die Publishing-Policies für Finance und Legal wurden von `ModernGroupLocation` auf `ExchangeLocation` umgestellt, da beide Ziele im Tenant klassische Verteilergruppen sind. Leadership bleibt korrekt bei `ModernGroupLocation`, da bestätigte private Microsoft-365-Gruppe. Siehe `Main Setup/Create-PublishingPolicies.ps1`.
 
 ## 3. Produktives Labelmodell
 
@@ -43,9 +43,9 @@ Grundlage:
 | Use Case | Publishing Policy | Scope | Standardlabel und Einstellungen |
 |---|---|---|---|
 | Vollständige Labelauswahl in Exchange | `Policy All, no Standard, No Inheritence` | Exchange: alle Benutzer | Alle 9 produktiven Labels; Downgrade-Begründung erforderlich |
-| Rechtliche E-Mails | `Legal, Intern Standard, Highest Inheritence for Mails` | Geplant: Legal Team | `General-Intern`; Anlagenaktion automatisch; Pflichtlabel |
-| Finanzielle E-Mails | `Finance, Confidential Intern, Perdefinded but Inheritence` | Geplant: Finance Team | `Confidential-Intern`; Anlagenaktion empfohlen; Pflichtlabel |
-| E-Mails des Führungskreises | `Leadership, Intern , Inheritence` | Leadership | `General-Intern`; Anlagenaktion automatisch; Pflichtlabel |
+| Rechtliche E-Mails | `Legal, Intern Standard, Highest Inheritence for Mails` | Legal Team (ExchangeLocation) | `General-Intern`; Anlagenaktion automatisch; Pflichtlabel |
+| Finanzielle E-Mails | `Finance, Confidential Intern, Perdefinded but Inheritence` | Finance Team (ExchangeLocation) | `Confidential-Intern`; Anlagenaktion empfohlen; Pflichtlabel |
+| E-Mails des Führungskreises | `Leadership, Intern , Inheritence` | Leadership (ModernGroupLocation) | `General-Intern`; Anlagenaktion automatisch; Pflichtlabel |
 
 ## 5. DLP-Use-Case-Matrix
 
@@ -69,16 +69,18 @@ Grundlage:
 
 | Use Case | Regel | Bedingung | Aktuelle Maßnahme |
 |---|---|---|---|
-| Sensible Inhalte durch Copilot verarbeiten | `Block labled content from beeing process Confidential Intern up` | `Confidential-Intern`, `Confidential-Extern`, `Confidential-Legal`, `Confidential-Finance` oder `Strictly-Confidential-Intern` | Aktuell Portalzugriff und Alert; kein `BlockAccess` |
-| Externe E-Mails durch Copilot verarbeiten | `Block Mails from ourside from beeing processed` | Absender außerhalb der Organisation | Aktuell Portalzugriff und Alert; kein `BlockAccess` |
+| Sensible Inhalte durch Copilot verarbeiten | `Block labled content from beeing process Confidential Intern up` | `Confidential-Intern`, `Confidential-Extern`, `Confidential-Legal`, `Confidential-Finance` oder `Strictly-Confidential-Intern` | **Blockiert** (`BlockAccess=true`), zusätzlich Portalzugriff und Alert |
+| Externe E-Mails durch Copilot verarbeiten | `Block Mails from ourside from beeing processed` | Absender außerhalb der Organisation | **Blockiert** (`BlockAccess=true`), zusätzlich Portalzugriff und Alert |
+
+> **Behoben (28.08.2026):** Beide Copilot-Regeln setzen jetzt `BlockAccess=true` und blockieren aktiv, statt nur zu warnen.
 
 ### 5.4 Endpoint
 
 | Use Case | Regel | Bedingung | Aktuelle Maßnahme |
 |---|---|---|---|
-| Sensible Daten zu eingeschränkten Cloud-/KI-Apps hochladen | `Sensitiv data block upload to restricted cloud apps` | Produktive vertrauliche Labels und zusätzlich `ContentIsNotLabeled=true` | Portalzugriff und Alert |
+| Sensible Daten zu eingeschränkten Cloud-/KI-Apps hochladen | `Sensitiv data block upload to restricted cloud apps` | Produktive vertrauliche Labels | **Blockiert** (`BlockAccess=true`), Portalzugriff und Alert |
 
-> **Prüfhinweis:** Die Kombination aus produktiv gelabeltem Inhalt und `ContentIsNotLabeled=true` wirkt widersprüchlich. Die Regel sollte vor einer Blockierung fachlich getestet werden.
+> **Behoben (28.08.2026):** Die widersprüchliche Zusatzbedingung `ContentIsNotLabeled=true` wurde entfernt. Die Regel prüft jetzt ausschließlich die Label-Bedingung und blockiert aktiv.
 
 ### 5.5 Google Workspace
 
@@ -88,9 +90,9 @@ Grundlage:
 
 ## 6. Priorisierte offene Punkte
 
-1. Finance Team und Legal Team sind Verteilergruppen, werden aber als `ModernGroupLocation` verwendet.
+1. ~~Finance Team und Legal Team sind Verteilergruppen, werden aber als `ModernGroupLocation` verwendet.~~ **Behoben (28.08.2026):** Publishing-Policies nutzen jetzt `ExchangeLocation` für Finance und Legal.
 2. Die Label-API meldete beim erneuten Anlegen bereits backendseitig vorhandener bzw. gelöschter Labels Fehler. Diese Fehler werden für die Use-Case-Beschreibung vorerst nicht als fachliche Abweichung bewertet.
-3. Die Endpoint-Bedingung mit `ContentIsNotLabeled=true` fachlich klären.
-4. Copilot-Regeln prüfen: Der Regelname spricht von Blockierung, die aktuelle Konfiguration setzt aber kein `BlockAccess`.
+3. ~~Die Endpoint-Bedingung mit `ContentIsNotLabeled=true` fachlich klären.~~ **Behoben (28.08.2026):** Bedingung entfernt, Regel blockiert jetzt eindeutig anhand der Label-Bedingung.
+4. ~~Copilot-Regeln prüfen: Der Regelname spricht von Blockierung, die aktuelle Konfiguration setzt aber kein `BlockAccess`.~~ **Behoben (28.08.2026):** Beide Regeln setzen jetzt `BlockAccess=true`.
 5. RMS-Vorlage `Confidential \\ All Employees`, Incident-Report-Empfänger und tatsächliche Gruppenmitglieder bestätigen.
 6. Für jeden Bereich mindestens einen Pilotbenutzer und einen Benutzer ohne Fachgruppenmitgliedschaft testen.
