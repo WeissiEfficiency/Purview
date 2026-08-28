@@ -6,11 +6,12 @@ Ganz einfaches Skript:
    - Skip, falls schon vorhanden.
 
 Hinweise:
-- Keine Farbe wird per Skript gesetzt (kein -AdvancedSettings @{Color=...}).
-  Der Purview-Portal-Farbwaehler akzeptiert nur eine feste Palette von Swatches;
-  ein per API gesetzter Hex-Wert wird immer als "custom color" markiert und laesst
-  sich nicht direkt anklicken. Farbe daher bei Bedarf einmalig manuell im Portal
-  aus der Palette waehlen.
+- Standard-Label-Farben können nicht per PowerShell ausgewählt werden. Die
+	AdvancedSettings-Farbe ist immer eine benutzerdefinierte Farbe und wird im
+	Purview-Portal als "Use previously assigned custom color" angezeigt.
+- Die Standardfarbe für Testlabels daher im Purview-Portal an der jeweiligen
+	Labelgruppe setzen; Unterlabels übernehmen die Farbe ihrer Labelgruppe.
+- Footer-Farben werden separat über ApplyContentMarkingFooterFontColor gesetzt.
 - New-Label kennt keine Parameter -Description oder -ContentMarking.
   Echte Parameter: -Tooltip (statt Description),
   -ApplyContentMarkingFooter* (statt ContentMarking),

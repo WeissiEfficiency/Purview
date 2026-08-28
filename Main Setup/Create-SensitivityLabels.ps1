@@ -18,7 +18,8 @@
 
 .NOTES
 	Das Skript besitzt keinen Vorschau-Modus und erstellt fehlende Labels direkt.
-	Die Label-Farben werden über AdvancedSettings gesetzt; die Footer-Farben werden
+	Standard-Label-Farben werden im Purview-Portal an den Labelgruppen gesetzt;
+	Unterlabels übernehmen die Farbe ihrer Labelgruppe. Footer-Farben werden
 	separat über ApplyContentMarkingFooterFontColor konfiguriert.
 - New-Label kennt keine Parameter -Description oder -ContentMarking.
   Echte Parameter: -Tooltip (statt Description),
@@ -55,19 +56,6 @@ function Write-Log {
 	Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
 }
 
-function Set-ExistingLabelColor {
-	param(
-		[Parameter(Mandatory = $true)][string]$LabelName,
-		[Parameter(Mandatory = $true)][string]$Color
-	)
-
-	try {
-		Set-Label -Identity $LabelName -AdvancedSettings @{ Color = $Color } -Confirm:$false -ErrorAction Stop
-		Write-Log -Level OK -Message "Farbe für vorhandenes Label '$LabelName' auf '$Color' gesetzt."
-	} catch {
-		Write-Log -Level ERROR -Message "Farbe für Label '$LabelName': $($_.Exception.Message)"
-	}
-}
 #endregion Functions
 
 #region Connection
@@ -99,13 +87,11 @@ $publicLabel = @{
 	ApplyContentMarkingFooterFontColor = '#008000'
 	EncryptionEnabled                  = $true
 	EncryptionProtectionType           = 'RemoveProtection'
-	AdvancedSettings                   = @{ Color = '#008000' }
 	Confirm                            = $false
 }
 
 if (Get-Label -Identity $publicLabel.Name -ErrorAction SilentlyContinue) {
 	Write-Log -Level WARN -Message "Label '$($publicLabel.Name)' existiert bereits."
-	Set-ExistingLabelColor -LabelName $publicLabel.Name -Color $publicLabel.AdvancedSettings.Color
 } else {
 	try {
 		New-Label @publicLabel -ErrorAction Stop | Out-Null
@@ -119,15 +105,14 @@ if (Get-Label -Identity $publicLabel.Name -ErrorAction SilentlyContinue) {
 #region LabelGroups
 # Die drei Containerlabels werden vor ihren Unterlabels angelegt.
 $groupLabels = @(
-	[pscustomobject]@{ Name = 'General';              DisplayName = 'General';              Tooltip = 'Für allgemeine Informationen und Angelegenheiten.';              LabelColor = '#0000FF' },
-	[pscustomobject]@{ Name = 'Confidential';          DisplayName = 'Confidential';          Tooltip = 'Für vertrauliche Informationen und Angelegenheiten.';          LabelColor = '#FFFF00' },
-	[pscustomobject]@{ Name = 'Strictly-Confidential'; DisplayName = 'Strictly Confidential'; Tooltip = 'Für streng vertrauliche Informationen und Angelegenheiten.'; LabelColor = '#FF0000' }
+	[pscustomobject]@{ Name = 'General';              DisplayName = 'General';              Tooltip = 'Für allgemeine Informationen und Angelegenheiten.' },
+	[pscustomobject]@{ Name = 'Confidential';          DisplayName = 'Confidential';          Tooltip = 'Für vertrauliche Informationen und Angelegenheiten.' },
+	[pscustomobject]@{ Name = 'Strictly-Confidential'; DisplayName = 'Strictly Confidential'; Tooltip = 'Für streng vertrauliche Informationen und Angelegenheiten.' }
 )
 
 foreach ($g in $groupLabels) {
 	if (Get-Label -Identity $g.Name -ErrorAction SilentlyContinue) {
 		Write-Log -Level WARN -Message "Group-Label '$($g.Name)' existiert bereits."
-			Set-ExistingLabelColor -LabelName $g.Name -Color $g.LabelColor
 		continue
 	}
 	try {
@@ -136,7 +121,6 @@ foreach ($g in $groupLabels) {
 			DisplayName  = $g.DisplayName
 			Tooltip      = $g.Tooltip
 			IsLabelGroup = $true
-			AdvancedSettings = @{ Color = $g.LabelColor }
 			Confirm      = $false
 		}
 		New-Label @groupParams -ErrorAction Stop | Out-Null
@@ -167,7 +151,6 @@ $subLabels = @(
 foreach ($l in $subLabels) {
 	if (Get-Label -Identity $l.Name -ErrorAction SilentlyContinue) {
 		Write-Log -Level WARN -Message "Label '$($l.Name)' existiert bereits."
-		Set-ExistingLabelColor -LabelName $l.Name -Color $l.LabelColor
 		continue
 	}
 
@@ -180,7 +163,6 @@ foreach ($l in $subLabels) {
 		ApplyContentMarkingFooterFontSize   = 10
 		ApplyContentMarkingFooterText       = $l.FooterText
 		ApplyContentMarkingFooterFontColor  = $l.FooterColor
-		AdvancedSettings                   = @{ Color = $l.LabelColor }
 		EncryptionEnabled                   = $true
 		EncryptionProtectionType            = $l.ProtectionType
 		Confirm                             = $false
