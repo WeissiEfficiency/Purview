@@ -144,6 +144,21 @@ function Invoke-RemoveObject {
         }
         catch {
             $lastError = $_.Exception.Message
+            $alreadyMissing = $lastError -match 'wasn.t found|not found|No object|The object could not be found|does not exist|could not be found|already deleted|not exist'
+
+            if ($alreadyMissing) {
+                $script:DeletionResults.Add([pscustomobject]@{
+                    ObjectType = $ObjectType
+                    Name       = $displayName
+                    Identity   = $identity
+                    Status     = 'AlreadyMissing'
+                    Attempts   = $attempt
+                    Error      = $lastError
+                })
+                Write-Log -Level WARN -Message "$ObjectType '$displayName' war bereits nicht mehr vorhanden. Überspringe."
+                return $true
+            }
+
             Write-Log -Level WARN -Message ("Versuch {0}/{1} für {2} '{3}' fehlgeschlagen: {4}" -f $attempt, $Attempts, $ObjectType, $displayName, $lastError)
             if ($attempt -lt $Attempts) {
                 Start-Sleep -Seconds $RetryDelaySeconds
