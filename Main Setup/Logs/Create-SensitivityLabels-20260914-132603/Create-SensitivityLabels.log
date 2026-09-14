@@ -1,0 +1,15 @@
+[2026-09-14 13:26:03] [INFO] Logpfad: C:\Users\StefanWeiß\OneDrive - Skaylink GmbH\Documents\Dev\Purview\Purview\Main Setup\Logs\Create-SensitivityLabels-20260914-132603
+[2026-09-14 13:26:08] [INFO] Verbindung zu Security & Compliance PowerShell wird hergestellt.
+[2026-09-14 13:26:34] [WARN] Label 'Public' existiert bereits.
+[2026-09-14 13:26:38] [WARN] Group-Label 'General' existiert bereits.
+[2026-09-14 13:26:41] [WARN] Group-Label 'Confidential' existiert bereits.
+[2026-09-14 13:26:45] [WARN] Group-Label 'Strictly-Confidential' existiert bereits.
+[2026-09-14 13:26:47] [WARN] Label 'General-Intern' existiert bereits.
+[2026-09-14 13:26:50] [WARN] Label 'General-Extern' existiert bereits.
+[2026-09-14 13:26:51] [WARN] Label 'Confidential-Intern' existiert bereits.
+[2026-09-14 13:26:55] [WARN] Label 'Confidential-Extern' existiert bereits.
+[2026-09-14 13:27:01] [ERROR] Label 'Confidential-Legal': The given key was not present in the dictionary.
+[2026-09-14 13:27:09] [ERROR] Label 'Confidential-Finance': The given key was not present in the dictionary.
+[2026-09-14 13:27:16] [ERROR] Label 'Strictly-Confidential-Intern': The given key was not present in the dictionary.
+[2026-09-14 13:27:22] [ERROR] Label 'Strictly-Confidential-Personalized': The given key was not present in the dictionary.
+[2026-09-14 13:27:22] [INFO] Skript beendet.

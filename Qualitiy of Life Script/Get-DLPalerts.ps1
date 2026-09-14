@@ -1,10 +1,11 @@
 <#
 .SYNOPSIS
     Exportiert DLP-Aktivitäten aus Microsoft Purview als CSV,
-    ohne die Spalte "User".
+    ohne Benutzer- und Dateiangaben.
 
 .VORAUSSETZUNG
     Install-Module ExchangeOnlineManagement -Scope CurrentUser
+    Test123
 #>
 
 [CmdletBinding()]
@@ -33,19 +34,11 @@ $DlpActivities = @(
 # Ausschließlich UTC verwenden:
 # - Endzeit fünf Minuten vor der aktuellen Zeit, damit sie niemals
 #   durch Zeitverschiebung oder Uhrabweichung als Zukunft erkannt wird.
-# - Bei 30 Tagen eine Sicherheitsreserve zur ältesten zulässigen
-#   Grenze vorsehen.
+# - Bei 30 Tagen 15 Minuten innerhalb des von Purview erlaubten Zeitfensters
+#   starten, da die API keine Zeitspanne außerhalb der letzten 30 Tage zulässt.
 $NowUtc               = [DateTime]::UtcNow
 $EndTimeUtc           = $NowUtc.AddMinutes(-5)
-$RequestedStartUtc    = $EndTimeUtc.AddDays(-$Days)
-$EarliestSafeStartUtc = $NowUtc.AddDays(-30).AddMinutes(15)
-
-if ($RequestedStartUtc -lt $EarliestSafeStartUtc) {
-    $StartTimeUtc = $EarliestSafeStartUtc
-}
-else {
-    $StartTimeUtc = $RequestedStartUtc
-}
+$StartTimeUtc         = $NowUtc.AddDays(-$Days).AddMinutes(15)
 
 if ($StartTimeUtc -ge $EndTimeUtc) {
     throw "Die berechnete Startzeit muss vor der Endzeit liegen."
@@ -120,6 +113,8 @@ try {
     }
     while (-not $IsLastPage)
 
+    Write-Host ("Abgerufene DLP-Datenseiten: {0}" -f $PageNumber)
+
     # JSON erst nach dem Abruf aller Seiten auswerten.
     # Dadurch wird der jeweilige WaterMark möglichst schnell weiterverwendet.
     $Records = [System.Collections.Generic.List[object]]::new()
@@ -141,13 +136,13 @@ try {
         return
     }
 
-    # Gesamte Top-Level-Spaltenmenge ermitteln, aber "User" ausschließen.
-    # Dadurch fehlt die Spalte auch dann, wenn sie nur in einzelnen
-    # Ereignistypen vorkommt.
+    # Gesamte Top-Level-Spaltenmenge ermitteln, aber sensible bzw. redundante
+    # Pfad-, Datei- und Benutzerangaben ausschließen. Dadurch fehlen diese Spalten auch
+    # dann, wenn sie nur in einzelnen Ereignistypen vorkommen.
     $Columns = @(
         $Records |
             ForEach-Object { $_.PSObject.Properties.Name } |
-            Where-Object { $_ -ine "User" } |
+            Where-Object { $_ -notin @("User", "FilePath", "ItemName") } |
             Sort-Object -Unique
     )
 
