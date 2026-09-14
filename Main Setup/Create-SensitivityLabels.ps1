@@ -62,9 +62,9 @@ function Write-Log {
 Write-Log -Message "Logpfad: $LogPath"
 
 # Die RMS-Rechte verwenden diese festen Gruppenidentitäten.
-$FinanceIdentity    = 'FinanceTeam@M365DS410216.onmicrosoft.com'
-$LegalIdentity      = 'LegalTeam@M365DS410216.onmicrosoft.com'
-$LeadershipIdentity = 'Leadership@m365ds410216.onmicrosoft.com'
+$FinanceIdentity    = 'FinanceTeam@M365DS559840.onmicrosoft.com'
+$LegalIdentity      = 'LegalTeam@M365DS559840.onmicrosoft.com'
+$LeadershipIdentity = 'Leadership@M365DS559840.onmicrosoft.com'
 
 # Verbindung nur herstellen, wenn die Purview-Cmdlets noch nicht verfügbar sind.
 if (-not (Get-Command New-Label -ErrorAction SilentlyContinue)) {

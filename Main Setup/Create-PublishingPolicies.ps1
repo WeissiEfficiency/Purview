@@ -70,7 +70,7 @@ $policies = @(
     # Vollständige Labelauswahl für alle Exchange-Benutzer.
     [pscustomobject]@{
         Name          = 'Policy All, no Standard, No Inheritence'
-        Labels        = @('Public', 'General', 'General-Intern', 'General-Extern', 'Confidential', 'Confidential-Intern', 'Confidential-Extern', 'Strictly-Confidential', 'Strictly-Confidential-Personalized')
+        Labels        = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
         Exchange      = @('All')
         Settings      = @{ requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
@@ -80,21 +80,21 @@ $policies = @(
     [pscustomobject]@{
         Name          = 'Legal, Intern Standard, Highest Inheritence for Mails'
         Labels        = @('Public', 'General', 'General-Intern', 'Confidential', 'Confidential-Legal')
-        Exchange      = @('LegalTeam@M365DS410216.onmicrosoft.com')
+        Exchange      = @('LegalTeam@M365DS559840.OnMicrosoft.com')
         Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
     [pscustomobject]@{
         Name          = 'Finance, Confidential Intern, Perdefinded but Inheritence'
         Labels        = @('Public', 'Confidential', 'Confidential-Intern', 'Confidential-Finance')
-        Exchange      = @('FinanceTeam@M365DS410216.onmicrosoft.com')
+        Exchange      = @('FinanceTeam@M365DS559840.onmicrosoft.com')
         Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'Confidential-Intern'; defaultlabelid = 'Confidential-Intern'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
 	# Leadership ist im Tenant eine private Microsoft-365-Gruppe und bleibt daher
 	# korrekt bei ModernGroupLocation.
     [pscustomobject]@{
         Name          = 'Leadership, Intern , Inheritence'
-        Labels        = @('Public', 'General', 'General-Intern', 'Confidential', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential', 'Strictly-Confidential-Intern')
-        ModernGroups  = @('Leadership@m365ds410216.onmicrosoft.com')
+        Labels        = @('Public', 'General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')
+        ModernGroups  = @('Leadership@M365DS559840.onmicrosoft.com')
         Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     }
 )

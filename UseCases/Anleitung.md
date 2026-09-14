@@ -35,7 +35,7 @@ Import-Module ExchangeOnlineManagement
 Für alle Befehle denselben UPN verwenden. Im Anmeldefenster muss dasselbe Konto ausgewählt werden:
 
 ```powershell
-$upn = 'admin@M365DS410216.onmicrosoft.com'
+$upn = 'admin@M365DS559840.onmicrosoft.com'
 ```
 
 ## 3. Tenant inventarisieren
