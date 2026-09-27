@@ -74,6 +74,15 @@ Vor der Einrichtung prüfen, dass die Gruppen aus `config/tenant.psd1` im Tenant
 
 Gruppenmitglieder und Testkonten: `UseCases/Testkonten.md`.
 
+Diese Punkte prüft `Test-TenantReadiness.ps1` in einem Lauf, **ohne etwas zu ändern**: Modulversion, Gruppen (Existenz, Typ, Mitglieder), Pilotkonten aus `UseCases/Testkonten.md` samt Gruppenzugehörigkeit, Incident-Report-Empfänger, Azure RMS und RMS-Vorlage sowie – falls das Modul `Microsoft.Online.SharePoint.PowerShell` installiert ist – die Label-Integration für SharePoint/OneDrive (`EnableAIPIntegration`).
+
+```powershell
+.\Purview\Presets\Test-TenantReadiness.ps1 `
+  -UserPrincipalName $upn
+```
+
+Ergebnis: `Logs\Test-TenantReadiness-<Zeitstempel>\TenantReadiness.txt` (und `.csv`). Jede Zeile hat den Status `OK`, `WARN`, `FAIL` oder `SKIP`; vor Abschnitt 4 alle `FAIL` beheben. Endpoint-Onboarding und Dienstdomänen sind nicht per PowerShell prüfbar und erscheinen als `SKIP` mit Hinweis auf die Stelle im Portal.
+
 > **Wichtig:** Finance Team und Legal Team sind Verteilergruppen (`ExchangeLocation`), Leadership ist eine Microsoft-365-Gruppe (`ModernGroupLocation`). Die Team-Policies werden zunächst für alle Benutzer angelegt und direkt danach von `Set-PublishingPolicyGroups.ps1` auf die Gruppe eingeschränkt. Nach dem Lauf prüfen, dass keine Team-Policy mehr `ExchangeLocation All` hat.
 
 ## 4. Sensitivity Labels prüfen und erstellen

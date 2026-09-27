@@ -2,6 +2,10 @@
 
 Wesentliche Änderungen an Skripten, Konfiguration und Dokumentation. Neueste Einträge oben.
 
+## 2026-09-27 — Phase 1: Tenant-Bereitschaft
+
+- Neues Prüfskript `Presets/Test-TenantReadiness.ps1` (nur lesend): Modulversion, Gruppen aus `config/tenant.psd1` (Existenz, Typ, Mitglieder), Pilotkonten aus `UseCases/Testkonten.md`, Incident-Report-Empfänger, Azure RMS und RMS-Vorlage, SharePoint-Label-Integration. Bericht als Text und CSV unter `Logs\`.
+
 ## 2026-09-27 — Fachliche Entscheidungen und Dokumentation
 
 **Konfiguration**

@@ -9,7 +9,7 @@ Automatisierungsskripte, Use-Case-Dokumentation und Demo-Material für ein produ
 | `Main Setup/` | Produktionsskripte zum Erstellen und Abgleichen von Sensitivity Labels, Publishing Policies (inkl. Gruppenzuordnung) und DLP-Regeln sowie ein Orchestrierungsskript |
 | `config/` | `tenant.psd1`: alle tenant-spezifischen Werte (Gruppen, Incident-Empfänger, RMS-Vorlage, Proton-Domains) |
 | `Modules/PurviewSetup/` | Gemeinsames Modul für Logging, Verbindung, Konfiguration und Soll/Ist-Vergleich |
-| `Presets/` | Wiederverwendbare Automatisierungen: Admin zu Verteilergruppen hinzufügen, Tenant-Identitäten inventarisieren, Purview-Konfiguration vollständig zurücksetzen |
+| `Presets/` | Wiederverwendbare Automatisierungen: Tenant-Bereitschaft prüfen (nur lesend), Admin zu Verteilergruppen hinzufügen, Tenant-Identitäten inventarisieren, Purview-Konfiguration vollständig zurücksetzen |
 | `Test/` | Testvarianten der Setup-Skripte (rufen die Skripte in `Main Setup/` mit Präfix `Test-` für Labels und `Test ` für Policies/Regeln auf) sowie Export-/Abfrage-Skripte |
 | `UseCases/` | Soll-Konfiguration (`UseCaseKontext.md`), Laufanleitung, Testkonten (`Testkonten.md`) sowie Use-Case-Matrizen zu Label-Freigaben/RMS und M365-DLP-Demoszenarien |
 | `Demo Dokumente/` | Testdokumente mit unterschiedlichen Vertraulichkeitsstufen, ein Demo-Runbook und ein Testprotokoll |
@@ -31,6 +31,9 @@ Die empfohlene Reihenfolge ist in `UseCases/Anleitung.md` im Detail beschrieben.
 .\Presets\Get-TenantIdentityInventory.ps1 -UserPrincipalName admin@contoso.com
 
 # 2. config\tenant.psd1 prüfen bzw. an den Tenant anpassen
+
+# 2a. Tenant-Bereitschaft prüfen (nur lesend; Bericht unter Logs\Test-TenantReadiness-*)
+.\Presets\Test-TenantReadiness.ps1 -UserPrincipalName admin@contoso.com
 
 # 3. Vorschau: zeigt, was angelegt würde, und meldet Abweichungen vorhandener Objekte
 .\Main Setup\Start-PurviewSetup.ps1 -UserPrincipalName admin@contoso.com
