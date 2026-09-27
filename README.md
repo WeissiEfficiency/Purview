@@ -49,7 +49,11 @@ Diese Dokumente sind reine Planungsartefakte; keine der dort beschriebenen Maßn
 - Label-Farben lassen sich nicht zuverlässig per API setzen (Purview-Portal akzeptiert nur Paletten-Farben); Farben daher bei Bedarf manuell im Portal an den Labelgruppen setzen.
 - `Create-DlpComplianceRule.ps1` überspringt bereits vorhandene Regeln, statt sie zu aktualisieren. Korrekturen an bereits ausgerollten Regeln (z. B. `StopPolicyProcessing` der Proton-Regel, umbenannte EXO-Regel) meldet das Skript als Warnung; sie müssen manuell nachgezogen werden.
 
-> Früher an dieser Stelle gelistete Punkte (Finance/Legal als `ModernGroupLocation`, fehlendes `BlockAccess` bei Copilot-DLP-Regeln, widersprüchliche Endpoint-Bedingung) wurden behoben — siehe Commit-Historie von `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Create-DlpComplianceRule.ps1`.
+- Die Team-Publishing-Policies (Legal, Finance, Leadership) werden zunächst mit `ExchangeLocation All` angelegt, weil `New-LabelPolicy` die Verteilergruppen im Tenant nicht direkt auflöst, und anschließend von `Main Setup/Set-PublishingPolicyGroups.ps1` auf die Gruppen eingeschränkt. `Create-PublishingPolicies.ps1` führt diesen Schritt automatisch aus und loggt einen Fehler, wenn er scheitert (dann gelten die Policies für alle Benutzer).
+- Neue DLP-Policies werden standardmäßig im Modus `TestWithNotifications` erstellt (`-PolicyMode Enable` für den Produktivbetrieb).
+- Copilot-Regeln verwenden `RestrictAccess` (`ExcludeContentProcessing`), weil `BlockAccess` für den Copilot-Workload abgelehnt wird. Die Google-Workspace-Regel ist optional (`-IncludeGoogleWorkspace`) und wird vom Tenant derzeit abgelehnt.
+
+> Früher an dieser Stelle gelistete Punkte (Finance/Legal als `ModernGroupLocation`, widersprüchliche Endpoint-Bedingung) wurden behoben — siehe Commit-Historie von `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Create-DlpComplianceRule.ps1`.
 
 ## Sicherheitshinweis
 

@@ -71,7 +71,7 @@ Vor der Einrichtung prüfen:
 | Legal | `LegalTeam@M365DS410216.onmicrosoft.com` | `Confidential-Legal` |
 | Leadership | `Leadership@m365ds410216.onmicrosoft.com` | Legal, Finance und Strictly Confidential |
 
-> **Wichtig:** Finance Team und Legal Team sind keine Microsoft-365-Gruppen, werden in den Publishing Policies aber aktuell über `ModernGroupLocation` angesprochen. Diese Zuordnung vor produktiver Nutzung bestätigen oder korrigieren.
+> **Wichtig:** Finance Team und Legal Team sind Verteilergruppen (`ExchangeLocation`), Leadership ist eine Microsoft-365-Gruppe (`ModernGroupLocation`). Die Team-Policies werden zunächst für alle Benutzer angelegt und direkt danach von `Set-PublishingPolicyGroups.ps1` auf die Gruppe eingeschränkt. Nach dem Lauf prüfen, dass keine Team-Policy mehr `ExchangeLocation All` hat.
 
 ## 4. Sensitivity Labels prüfen und erstellen
 
@@ -193,7 +193,8 @@ Erwartete Verteilung der zehn Regeln:
 
 Vor der produktiven Erstellung prüfen:
 
-- `Confidential \ All Employees` als RMS-Vorlage (Parameter `-EncryptionTemplate`)
+- RMS-Vorlage für die Regel `Encryption` (Parameter `-EncryptionTemplate`, Standard `Encrypt`; `Confidential \ All Employees` existiert im Tenant nicht)
+- Modus neuer DLP-Policies (Parameter `-PolicyMode`, Standard `TestWithNotifications`)
 - Incident-Report-Empfänger (Parameter `-IncidentReportRecipient`, Standard `admin@M365DS559840.onmicrosoft.com`)
 - Labelnamen im Tenant
 - Google-Workspace-Anwendung
@@ -315,7 +316,7 @@ Die Exportdateien versionieren oder revisionssicher ablegen. Keine produktiven L
 | `Admin account chosen ... is different` | Im Loginfenster dasselbe Konto wie im Parameter wählen |
 | `The given key was not present in the dictionary` bei Labels | Bekannten Backend-/Löschzustand dokumentieren; Labelstatus im Portal und per `Get-Label` prüfen |
 | Publishing Policy meldet Labels nicht gefunden | Labelnamen und abgeschlossene Label-Synchronisierung prüfen |
-| Gruppe für `ModernGroupLocation` nicht gültig | Gruppentyp prüfen; Finance/Legal sind aktuell Verteilergruppen |
+| Team-Policy gilt für alle Benutzer | Log unter `GroupAssignment/Set-PublishingPolicyGroups.log` prüfen und `Set-PublishingPolicyGroups.ps1 -Execute` erneut ausführen |
 | DLP-Regel existiert bereits | Bestehende Regel prüfen; nicht automatisch als aktuell betrachten |
 | Setup stoppt nach einem Schritt | Betreffendes Log unter `Logs\Start-PurviewSetup-*` lesen; erst nach Behebung erneut starten |
 

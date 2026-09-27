@@ -62,7 +62,7 @@ Grundlage:
 | Use Case | Regel | Bedingung | Aktuelle Maßnahme |
 |---|---|---|---|
 | Sensible E-Mail an Proton Mail | `Recipient domain is proton mail - needs approval` | Empfänger-Domain `pm.me`, `proton.me`, `protonmail.com` oder `protonmail.ch` und sensibles produktives Label | Portalzugriff, Alert und Policy Tip; die nachfolgenden EXO-Regeln greifen weiterhin |
-| `General-Intern` per E-Mail extern senden | `Encryption` | `General-Intern` und Zugriff außerhalb der Organisation | RMS-Verschlüsselung mit `Confidential \ All Employees`, Policy-Tip-Dialog und Verarbeitung stoppen |
+| `General-Intern` per E-Mail extern senden | `Encryption` | `General-Intern` und Zugriff außerhalb der Organisation | RMS-Verschlüsselung mit der Vorlage `Encrypt`, Policy-Tip-Dialog und Verarbeitung stoppen |
 | `Confidential-Intern` per E-Mail extern senden | `Block sharing of confidential internal content outside org` | `Confidential-Intern` und Zugriff außerhalb der Organisation | Blockieren, Alert, Benachrichtigung, Policy Tip und Verarbeitung stoppen |
 
 ### 5.3 Copilot
@@ -94,5 +94,5 @@ Grundlage:
 2. Die Label-API meldete beim erneuten Anlegen bereits backendseitig vorhandener bzw. gelöschter Labels Fehler. Diese Fehler werden für die Use-Case-Beschreibung vorerst nicht als fachliche Abweichung bewertet.
 3. ~~Die Endpoint-Bedingung mit `ContentIsNotLabeled=true` fachlich klären.~~ **Behoben (28.08.2026):** Bedingung entfernt, Regel blockiert jetzt eindeutig anhand der Label-Bedingung.
 4. ~~Copilot-Regeln prüfen: Der Regelname spricht von Blockierung, die aktuelle Konfiguration setzt aber kein `BlockAccess`.~~ **Behoben (28.08.2026):** Beide Regeln setzen jetzt `BlockAccess=true`.
-5. RMS-Vorlage `Confidential \ All Employees`, Incident-Report-Empfänger und tatsächliche Gruppenmitglieder bestätigen.
+5. RMS-Vorlage (`-EncryptionTemplate`, Standard `Encrypt`), Incident-Report-Empfänger und tatsächliche Gruppenmitglieder bestätigen.
 6. Für jeden Bereich mindestens einen Pilotbenutzer und einen Benutzer ohne Fachgruppenmitgliedschaft testen.

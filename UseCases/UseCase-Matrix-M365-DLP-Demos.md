@@ -121,7 +121,7 @@ Die Matrix basiert auf:
 
 1. Neue E-Mail mit einer Datei oder Nachricht mit `General-Intern` erstellen.
 2. An externe Adresse senden.
-3. Erwartung: RMS-Verschlüsselung mit `Confidential \ All Employees`, Policy-Tip-Dialog und Stopp der weiteren Policy-Verarbeitung.
+3. Erwartung: RMS-Verschlüsselung mit der Vorlage `Encrypt`, Policy-Tip-Dialog und Stopp der weiteren Policy-Verarbeitung.
 4. Prüfen, welche Empfänger die RMS-Rechte tatsächlich besitzen.
 
 ### Demo D: Confidential-Intern per E-Mail blockieren
@@ -329,7 +329,7 @@ Kontrollfragen:
 - Eine produktive Regel referenziert weiterhin ein `Test-`-Label.
 - Eine sensible Datei kann ohne erwarteten Alert oder Block nach außen gelangen.
 - RMS-Rechte erlauben Zugriff für nicht vorgesehene Benutzer.
-- Finance oder Legal werden weiterhin als `ModernGroupLocation` konfiguriert, obwohl beide Verteilergruppen sind.
+- Eine Team-Policy (Legal, Finance, Leadership) hat noch `ExchangeLocation All`, weil die Gruppenzuordnung fehlgeschlagen ist.
 - Copilot blockiert sensible Inhalte trotz Konfiguration nicht (`BlockAccess` fehlt oder greift nicht).
 - Endpoint-Ergebnisse sind nicht reproduzierbar.
 

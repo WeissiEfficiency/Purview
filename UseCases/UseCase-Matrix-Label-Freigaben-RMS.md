@@ -229,7 +229,7 @@ Für jedes Label-Freigabe-Szenario festhalten:
 
 - `RemoveProtection` bedeutet nicht automatisch öffentliche Freigabe. SharePoint-/OneDrive-Berechtigungen und DLP gelten weiterhin.
 - Gruppenmitgliedschaft und RMS-Rechte müssen beide stimmen.
-- Finance Team und Legal Team sind im Tenant Verteilergruppen, die Publishing Policies verwenden aktuell jedoch `ModernGroupLocation`.
+- Finance Team und Legal Team sind im Tenant Verteilergruppen und werden über `ExchangeLocation` zugeordnet; die Zuordnung erfolgt nach der Policy-Erstellung durch `Set-PublishingPolicyGroups.ps1`.
 - Ein Administrator kann durch zusätzliche Rechte ein anderes Ergebnis sehen als ein normaler Benutzer.
 - Änderungen an Gruppenmitgliedschaften und Labels können verzögert wirksam werden.
 - Die tatsächliche Portal- und Office-Anzeige ist nach jeder Änderung mit einem echten Pilotkonto zu prüfen.

@@ -7,12 +7,22 @@
     Ohne -Execute wird nur eine Vorschau ausgegeben. Bereits vorhandene Policies
     werden übersprungen.
 
+    Die Team-Policies (Legal, Finance, Leadership) werden zunächst mit
+    ExchangeLocation 'All' angelegt, weil New-LabelPolicy die Verteilergruppen
+    im Tenant nicht direkt auflöst. Direkt danach schränkt
+    Set-PublishingPolicyGroups.ps1 sie auf die jeweilige Gruppe ein. Dieser
+    Schritt läuft standardmäßig mit; schlägt er fehl, wird ein ERROR geloggt.
+
 .PARAMETER UserPrincipalName
     UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung.
 
 .PARAMETER Execute
     Erstellt die Policies tatsächlich. Ohne diesen Schalter bleibt das Skript
     im Vorschau-Modus.
+
+.PARAMETER SkipGroupAssignment
+    Überspringt die Gruppenzuordnung. Nur für Diagnosezwecke: Die Team-Policies
+    gelten dann für alle Benutzer.
 
 .PARAMETER LogPath
     Zielordner für das Ausführungslog.
@@ -24,10 +34,10 @@
     .\Create-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com -Execute
 
 .NOTES
-    Legal Team und Finance Team sind im Tenant mailfähige Verteilergruppen und
-    werden daher über -ExchangeLocation adressiert. Leadership ist eine private
-    Microsoft-365-Gruppe und wird weiterhin über -ModernGroupLocation adressiert.
-    Vor produktivem Einsatz den tatsächlichen Gruppentyp im Tenant erneut prüfen.
+    Labelgruppen (General, Confidential, Strictly-Confidential) können nicht
+    veröffentlicht werden; es werden nur die Unterlabels aufgeführt.
+    defaultlabelid und outlookdefaultlabel erwarten Label-GUIDs; die Namen werden
+    zur Laufzeit aufgelöst.
 #>
 #requires -Version 5.1
 #region Parameters
@@ -36,6 +46,8 @@ param(
     [string]$UserPrincipalName,
 
     [switch]$Execute,
+
+    [switch]$SkipGroupAssignment,
 
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-PublishingPolicies-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
@@ -62,40 +74,62 @@ function Write-Log {
     Write-Host $line
     Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
 }
+
+function Resolve-LabelId {
+    param(
+        [Parameter(Mandatory = $true)][string]$LabelName,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Labels
+    )
+
+    $label = $Labels | Where-Object {
+        [string]$_.Name -eq $LabelName -or
+        [string]$_.DisplayName -eq $LabelName -or
+        [string]$_.ImmutableId -eq $LabelName -or
+        [string]$_.Guid -eq $LabelName
+    } | Select-Object -First 1
+    if ($null -eq $label) {
+        throw "Sensitivity label '$LabelName' wurde im Tenant nicht gefunden."
+    }
+
+    if ($label.PSObject.Properties['ImmutableId'] -and $label.ImmutableId) {
+        return [string]$label.ImmutableId
+    }
+
+    if ($label.PSObject.Properties['Guid'] -and $label.Guid) {
+        return [string]$label.Guid
+    }
+
+    throw "Sensitivity label '$LabelName' hat keine gültige GUID für defaultlabelid."
+}
 #endregion Functions
 
 #region PolicyDefinitions
-# Die Policies referenzieren die produktiven Labels direkt über ihre Namen.
-$policies = @(
-    # Vollständige Labelauswahl für alle Exchange-Benutzer.
+# Die Policies referenzieren die produktiven Labels über ihre Namen. GroupTarget
+# markiert Team-Policies, die Set-PublishingPolicyGroups.ps1 danach einschränkt.
+$policyTemplates = @(
     [pscustomobject]@{
-        Name          = 'Policy All, no Standard, No Inheritence'
-        Labels        = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
-        Exchange      = @('All')
-        Settings      = @{ requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
-    },
-	# Fachbereichsbezogene Policies. Legal und Finance sind mailfähige Verteilergruppen
-	# und werden ueber ExchangeLocation adressiert, nicht ueber ModernGroupLocation
-	# (das ist ausschliesslich fuer Microsoft-365-Gruppen vorgesehen).
-    [pscustomobject]@{
-        Name          = 'Legal, Intern Standard, Highest Inheritence for Mails'
-        Labels        = @('Public', 'General', 'General-Intern', 'Confidential', 'Confidential-Legal')
-        Exchange      = @('LegalTeam@M365DS559840.OnMicrosoft.com')
-        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Name        = 'Policy All, no Standard, No Inheritence'
+        Labels      = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
+        GroupTarget = $false
+        Settings    = @{ requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
     [pscustomobject]@{
-        Name          = 'Finance, Confidential Intern, Perdefinded but Inheritence'
-        Labels        = @('Public', 'Confidential', 'Confidential-Intern', 'Confidential-Finance')
-        Exchange      = @('FinanceTeam@M365DS559840.onmicrosoft.com')
-        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'Confidential-Intern'; defaultlabelid = 'Confidential-Intern'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Name        = 'Legal, Intern Standard, Highest Inheritence for Mails'
+        Labels      = @('Public', 'General-Intern', 'Confidential-Legal')
+        GroupTarget = $true
+        Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     },
-	# Leadership ist im Tenant eine private Microsoft-365-Gruppe und bleibt daher
-	# korrekt bei ModernGroupLocation.
     [pscustomobject]@{
-        Name          = 'Leadership, Intern , Inheritence'
-        Labels        = @('Public', 'General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')
-        ModernGroups  = @('Leadership@M365DS559840.onmicrosoft.com')
-        Settings      = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Name        = 'Finance, Confidential Intern, Perdefinded but Inheritence'
+        Labels      = @('Public', 'Confidential-Intern', 'Confidential-Finance')
+        GroupTarget = $true
+        Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'Confidential-Intern'; defaultlabelid = 'Confidential-Intern'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+    },
+    [pscustomobject]@{
+        Name        = 'Leadership, Intern , Inheritence'
+        Labels      = @('Public', 'General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')
+        GroupTarget = $true
+        Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     }
 )
 #endregion PolicyDefinitions
@@ -116,31 +150,25 @@ if ($Execute -or $UserPrincipalName) {
 #endregion Connection
 
 #region PolicyCreation
-# Vorhandene Policies einmalig laden, statt pro Policy Get-LabelPolicy -Identity
+# Labels und vorhandene Policies einmalig laden, statt pro Policy Get-* -Identity
 # aufzurufen: ein "nicht gefunden" kann dort je nach Modulversion terminierend sein.
+$tenantLabels = @()
 $existingPolicyNames = @()
 if ($Execute) {
     try {
+        $tenantLabels = @(Get-Label -ErrorAction Stop)
         $existingPolicyNames = @(Get-LabelPolicy -ErrorAction Stop | ForEach-Object { [string]$_.Name })
     } catch {
-        Write-Log -Level ERROR -Message "Vorhandene Publishing-Policies konnten nicht gelesen werden: $($_.Exception.Message)"
+        Write-Log -Level ERROR -Message "Labels oder Publishing-Policies konnten nicht gelesen werden: $($_.Exception.Message)"
         throw
     }
 }
 
 # Policies einzeln prüfen, damit ein Fehler die übrigen Einträge nicht verdeckt.
-foreach ($policy in $policies) {
-    $policyParams = @{
-        Name   = $policy.Name
-        Labels = $policy.Labels
-    }
-
-    if ($policy.PSObject.Properties['Exchange'] -and $policy.Exchange.Count -gt 0) { $policyParams.ExchangeLocation = $policy.Exchange }
-    if ($policy.PSObject.Properties['ModernGroups'] -and $policy.ModernGroups.Count -gt 0) { $policyParams.ModernGroupLocation = $policy.ModernGroups }
-    if ($policy.Settings.Count -gt 0) { $policyParams.AdvancedSettings = $policy.Settings }
-
+foreach ($policy in $policyTemplates) {
     if (-not $Execute) {
-        Write-Log -Level WARN -Message ("Vorschau: '{0}' mit {1} Labels würde erstellt werden." -f $policy.Name, $policy.Labels.Count)
+        $target = if ($policy.GroupTarget) { 'All, danach Gruppenzuordnung' } else { 'All' }
+        Write-Log -Level WARN -Message ("Vorschau: '{0}' mit {1} Labels würde erstellt werden (Exchange: {2})." -f $policy.Name, $policy.Labels.Count, $target)
         continue
     }
 
@@ -150,6 +178,19 @@ foreach ($policy in $policies) {
             continue
         }
 
+        $settings = [hashtable]::new($policy.Settings)
+        foreach ($key in @('defaultlabelid', 'outlookdefaultlabel')) {
+            if ($settings.ContainsKey($key)) {
+                $settings[$key] = Resolve-LabelId -LabelName ([string]$settings[$key]) -Labels $tenantLabels
+            }
+        }
+
+        $policyParams = @{
+            Name             = $policy.Name
+            Labels           = $policy.Labels
+            ExchangeLocation = @('All')
+            AdvancedSettings = $settings
+        }
         New-LabelPolicy @policyParams -ErrorAction Stop | Out-Null
         Write-Log -Level OK -Message "Publishing-Policy '$($policy.Name)' erstellt."
     } catch {
@@ -157,6 +198,31 @@ foreach ($policy in $policies) {
     }
 }
 #endregion PolicyCreation
+
+#region GroupAssignment
+# Ohne diesen Schritt bleiben die Team-Policies (inkl. Leadership-Labels und
+# Pflicht-Labeling) für alle Benutzer aktiv. Fehler werden daher als ERROR geloggt.
+if ($SkipGroupAssignment) {
+    Write-Log -Level WARN -Message 'Gruppenzuordnung übersprungen (-SkipGroupAssignment). Die Team-Policies gelten für alle Benutzer.'
+} else {
+    $groupScript = Join-Path -Path $PSScriptRoot -ChildPath 'Set-PublishingPolicyGroups.ps1'
+    $groupLogPath = Join-Path -Path $LogPath -ChildPath 'GroupAssignment'
+    if (-not (Test-Path -LiteralPath $groupScript -PathType Leaf)) {
+        Write-Log -Level ERROR -Message "Gruppenskript nicht gefunden: $groupScript"
+    } else {
+        Write-Log -Message 'Starte Gruppenzuordnung der Team-Policies.'
+        & $groupScript -Execute:([bool]$Execute) -LogPath $groupLogPath
+
+        $groupLog = Join-Path -Path $groupLogPath -ChildPath 'Set-PublishingPolicyGroups.log'
+        $groupErrors = @(Select-String -LiteralPath $groupLog -Pattern '[ERROR]' -SimpleMatch -ErrorAction SilentlyContinue)
+        if ($groupErrors.Count -gt 0) {
+            Write-Log -Level ERROR -Message "Gruppenzuordnung meldet $($groupErrors.Count) Fehler. Die betroffenen Team-Policies gelten weiterhin für alle Benutzer. Details: $groupLog"
+        } else {
+            Write-Log -Level OK -Message ('Gruppenzuordnung abgeschlossen{0}.' -f $(if ($Execute) { '' } else { ' (Vorschau)' }))
+        }
+    }
+}
+#endregion GroupAssignment
 
 #region Completion
 Write-Log -Message 'Skript beendet.'

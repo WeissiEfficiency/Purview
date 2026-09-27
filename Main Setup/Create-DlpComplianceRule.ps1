@@ -14,6 +14,11 @@
     Erstellt die Regeln tatsächlich. Ohne diesen Schalter bleibt das Skript im
     Vorschau-Modus.
 
+.PARAMETER IncludeGoogleWorkspace
+    Erstellt zusätzlich die optionale Google-Workspace-Policy und -Regel. Die
+    Regel wurde im Tenant bisher abgelehnt (ContentContainsSensitiveInformation
+    wird für diesen Workload nicht unterstützt) und muss noch überarbeitet werden.
+
 .PARAMETER LogPath
     Zielordner für das Ausführungslog.
 
@@ -22,8 +27,15 @@
     Ziel-Tenant existieren.
 
 .PARAMETER EncryptionTemplate
-    Name der RMS-Vorlage für die EXO-Regel 'Encryption'. Die Vorlage muss im
-    Tenant vorhanden sein (Get-RMSTemplate in Exchange Online).
+    Name der RMS-Vorlage für die EXO-Regel 'Encryption'. Standard ist die
+    integrierte Vorlage 'Encrypt' (Purview Message Encryption), die externe
+    Empfänger öffnen können. Die frühere Vorlage 'Confidential \ All Employees'
+    existiert im Tenant nicht. Verfügbare Vorlagen: Get-RMSTemplate (Exchange Online).
+
+.PARAMETER PolicyMode
+    Modus für neu erstellte DLP-Policies. Standard ist TestWithNotifications
+    (Simulation mit Policy Tips). Erst nach Auswertung mit -PolicyMode Enable
+    erstellen oder im Portal umschalten. Bestehende Policies bleiben unverändert.
 
 .EXAMPLE
     .\Create-DlpComplianceRule.ps1 -UserPrincipalName admin@contoso.com
@@ -61,12 +73,15 @@
 param(
     [string]$UserPrincipalName,
     [switch]$Execute,
+    [switch]$IncludeGoogleWorkspace,
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-DlpComplianceRules-Production-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))),
     [ValidateNotNullOrEmpty()]
     [string]$IncidentReportRecipient = 'admin@M365DS559840.onmicrosoft.com',
     [ValidateNotNullOrEmpty()]
-    [string]$EncryptionTemplate = 'Confidential \ All Employees'
+    [string]$EncryptionTemplate = 'Encrypt',
+    [ValidateSet('TestWithNotifications', 'TestWithoutNotifications', 'Enable')]
+    [string]$PolicyMode = 'TestWithNotifications'
 )
 
 Set-StrictMode -Version Latest
@@ -135,6 +150,11 @@ $copilotPolicy = 'AI -All users - Block processing'
 $endpointPolicy = 'Endpoint - All users - Restrict upload to AI Apps'
 $googleWorkspacePolicy = 'GoogleDrive - All users - Block usage'
 
+# BlockAccess wird fuer den Applications-Workload (Copilot) abgelehnt
+# (ErrorUnsupportedActionForApplicationsWorkloadException). Copilot-Regeln
+# schliessen Inhalte stattdessen ueber RestrictAccess von der Verarbeitung aus.
+$copilotRestrictAccess = @(@{ setting = 'ExcludeContentProcessing'; value = 'Block' })
+
 $rules = @(
     # SPO/ODB: externe Freigaben von gekennzeichneten Dokumenten kontrollieren.
     [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'Legal sharing violation with notification options'; Policy = $spoOdbPolicy; Parameters = @{
@@ -176,12 +196,12 @@ $rules = @(
     } },
     [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block labled content from beeing process Confidential Intern up'; Policy = $copilotPolicy; Parameters = @{
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels @('Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')))
-        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
+        RestrictAccess = $copilotRestrictAccess; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } },
-	# Copilot: sensible Inhalte und externe Absender aktiv blockieren, nicht nur melden.
+	# Copilot: sensible Inhalte und externe Absender von der Verarbeitung ausschliessen.
     [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block Mails from ourside from beeing processed'; Policy = $copilotPolicy; Parameters = @{
         AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'FromScope'; Value = 'NotInOrganization' })
-        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
+        RestrictAccess = $copilotRestrictAccess; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } },
     [pscustomobject]@{ Workload = 'Endpoint'; Name = 'Sensitiv data block upload to restricted cloud apps'; Policy = $endpointPolicy; Parameters = @{
         AdvancedRule = New-AdvancedRule @(
@@ -190,7 +210,7 @@ $rules = @(
         BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } },
 	# Google Workspace: sensible externe Uploads verhindern.
-    [pscustomobject]@{ Workload = 'Google Workspace'; Name = 'Block upload to google drive'; Policy = $googleWorkspacePolicy; Parameters = @{
+    [pscustomobject]@{ Workload = 'Google Workspace'; Name = 'Block upload to google drive'; Policy = $googleWorkspacePolicy; Optional = $true; Parameters = @{
         AdvancedRule = New-AdvancedRule @(
             (New-LabelCondition -Labels @('General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized'))
             @{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' }
@@ -211,14 +231,43 @@ if ($Execute -or $UserPrincipalName) {
     else { Connect-IPPSSession -ErrorAction Stop }
 }
 
-# Vorhandene Regeln einmalig laden, statt pro Regel Get-DlpComplianceRule -Identity
+$policyDefinitions = @(
+    [pscustomobject]@{
+        Name = $spoOdbPolicy
+        Parameters = @{ SharePointLocation = 'All'; OneDriveLocation = 'All' }
+    },
+    [pscustomobject]@{
+        Name = $exoPolicy
+        Parameters = @{ ExchangeLocation = 'All' }
+    },
+    [pscustomobject]@{
+        Name = $copilotPolicy
+        Parameters = @{
+            Locations = '[{"Workload":"Applications","Location":"470f2276-e011-4e9d-a6ec-20768be3a4b0","Inclusions":[{"Type":"Tenant","Identity":"All"}]}]'
+            EnforcementPlanes = @('CopilotExperiences')
+        }
+    },
+    [pscustomobject]@{
+        Name = $endpointPolicy
+        Parameters = @{ EndpointDlpLocation = 'All' }
+    },
+    [pscustomobject]@{
+        Name = $googleWorkspacePolicy
+        Optional = $true
+        Parameters = @{ ThirdPartyAppDlpLocation = 'All' }
+    }
+)
+
+# Vorhandene Policies und Regeln einmalig laden, statt pro Objekt Get-* -Identity
 # aufzurufen: ein "nicht gefunden" kann dort je nach Modulversion terminierend sein.
+$existingPolicyNames = @()
 $existingRuleNames = @()
 if ($Execute) {
     try {
+        $existingPolicyNames = @(Get-DlpCompliancePolicy -ErrorAction Stop | ForEach-Object { [string]$_.Name })
         $existingRules = @(Get-DlpComplianceRule -ErrorAction Stop)
     } catch {
-        Write-Log -Level ERROR -Message "Vorhandene DLP-Regeln konnten nicht gelesen werden: $($_.Exception.Message)"
+        Write-Log -Level ERROR -Message "Vorhandene DLP-Policies/-Regeln konnten nicht gelesen werden: $($_.Exception.Message)"
         throw
     }
     $existingRuleNames = @($existingRules | ForEach-Object { [string]$_.Name })
@@ -234,7 +283,40 @@ if ($Execute) {
     }
 }
 
+foreach ($policyDefinition in $policyDefinitions) {
+    if ($policyDefinition.PSObject.Properties['Optional'] -and $policyDefinition.Optional -and -not $IncludeGoogleWorkspace) {
+        Write-Log -Level WARN -Message ("Optionale DLP-Policy '{0}' wird übersprungen. Für die Erstellung -IncludeGoogleWorkspace angeben." -f $policyDefinition.Name)
+        continue
+    }
+
+    if (-not $Execute) {
+        Write-Log -Level WARN -Message ("Vorschau: DLP-Policy '{0}' wuerde im Modus '{1}' erstellt werden." -f $policyDefinition.Name, $PolicyMode)
+        continue
+    }
+
+    try {
+        if ($existingPolicyNames -contains $policyDefinition.Name) {
+            Write-Log -Level WARN -Message "DLP-Policy '$($policyDefinition.Name)' existiert bereits."
+            continue
+        }
+
+        $policyParams = @{ Name = $policyDefinition.Name; Mode = $PolicyMode; ErrorAction = 'Stop' }
+        foreach ($parameter in $policyDefinition.Parameters.GetEnumerator()) {
+            $policyParams[$parameter.Key] = $parameter.Value
+        }
+        New-DlpCompliancePolicy @policyParams | Out-Null
+        Write-Log -Level OK -Message "DLP-Policy '$($policyDefinition.Name)' im Modus '$PolicyMode' erstellt."
+    } catch {
+        Write-Log -Level ERROR -Message "DLP-Policy '$($policyDefinition.Name)': $($_.Exception.Message)"
+    }
+}
+
 foreach ($rule in $rules) {
+    if ($rule.PSObject.Properties['Optional'] -and $rule.Optional -and -not $IncludeGoogleWorkspace) {
+        Write-Log -Level WARN -Message ("Optionale DLP-Regel '{0}' wird übersprungen. Für die Erstellung -IncludeGoogleWorkspace angeben." -f $rule.Name)
+        continue
+    }
+
     if (-not $Execute) {
         Write-Log -Level WARN -Message ("Vorschau [{0}]: Regel '{1}' fuer Policy '{2}' wuerde erstellt werden." -f $rule.Workload, $rule.Name, $rule.Policy)
         continue
@@ -252,6 +334,9 @@ foreach ($rule in $rules) {
         Write-Log -Level OK -Message "DLP-Regel '$($rule.Name)' fuer $($rule.Workload) erstellt."
     } catch {
         Write-Log -Level ERROR -Message "DLP-Regel '$($rule.Name)': $($_.Exception.Message)"
+        if ($_.Exception.Message -match 'NoRmsTemplateFound|No RMSTemplate') {
+            Write-Log -Level ERROR -Message "RMS-Vorlage '$EncryptionTemplate' existiert nicht. Vorhandene Vorlagen in Exchange Online mit Get-RMSTemplate pruefen und per -EncryptionTemplate angeben."
+        }
     }
 }
 

@@ -1,0 +1,11 @@
+# Laufzeit-Ausgaben der Skripte (enthalten Tenant-Daten und lokale Pfade)
+Logs/
+Exports/
+*.log
+DLP-Activities_*.csv
+DLP-Activities_*.xlsx
+SensitivityLabelPublishingPolicies.csv
+
+# Windows/OneDrive
+desktop.ini
+Thumbs.db
