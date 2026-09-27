@@ -193,9 +193,9 @@ Erwartete Verteilung der zehn Regeln:
 
 Vor der produktiven Erstellung prüfen:
 
-- RMS-Vorlage für die Regel `Encryption` (Parameter `-EncryptionTemplate`, Standard `Encrypt`; `Confidential \ All Employees` existiert im Tenant nicht)
+- RMS-Vorlage für die Regel `Encryption` (`EncryptionTemplate` in `config/tenant.psd1`, Standard `Encrypt`; `Confidential \ All Employees` existiert im Tenant nicht)
 - Modus neuer DLP-Policies (Parameter `-PolicyMode`, Standard `TestWithNotifications`)
-- Incident-Report-Empfänger (Parameter `-IncidentReportRecipient`, Standard `admin@M365DS559840.onmicrosoft.com`)
+- Incident-Report-Empfänger (`IncidentReportRecipient` in `config/tenant.psd1`)
 - Labelnamen im Tenant
 - Google-Workspace-Anwendung
 - Endpoint-Bedingung mit `ContentIsNotLabeled=true`
@@ -218,19 +218,27 @@ Get-DlpComplianceRule | Select-Object Name, Policy, Mode, State
 
 ## 7. Gesamtes Setup automatisch starten
 
-Nach erfolgreicher Tenant-, Label- und Gruppenprüfung kann der zentrale Launcher verwendet werden:
+Nach erfolgreicher Tenant-, Label- und Gruppenprüfung kann der zentrale Launcher verwendet werden. Zuerst die Vorschau mit Abweichungsbericht, danach die Ausführung:
 
 ```powershell
+# Vorschau: meldet fehlende Objekte und Abweichungen, ändert nichts
+.\Purview\Main Setup\Start-PurviewSetup.ps1 `
+  -UserPrincipalName $upn
+
+# Ausführung: fehlende Objekte anlegen und Abweichungen korrigieren
 .\Purview\Main Setup\Start-PurviewSetup.ps1 `
   -UserPrincipalName $upn `
-  -Execute
+  -Execute `
+  -UpdateExisting
 ```
+
+Tenant-spezifische Werte (Gruppen, Incident-Empfänger, RMS-Vorlage) stehen in `config\tenant.psd1`.
 
 Der Launcher führt per Dot-Sourcing aus:
 
-1. `Create-SensitivityLabels.ps1 -Execute`
-2. `Create-PublishingPolicies.ps1 -Execute`
-3. `Create-DlpComplianceRule.ps1 -Execute`
+1. `Create-SensitivityLabels.ps1`
+2. `Create-PublishingPolicies.ps1` (inkl. `Set-PublishingPolicyGroups.ps1`)
+3. `Create-DlpComplianceRule.ps1`
 
 Der nächste Schritt startet erst, wenn der vorherige Schritt beendet wurde. Die Logs liegen unter:
 
@@ -243,7 +251,7 @@ Logs\Start-PurviewSetup-<Zeitstempel>\
 
 Der Launcher prüft die Logs der Einzelschritte auf `[ERROR]` und stoppt bei protokollierten Fehlern.
 
-> **Hinweis:** Ein vorhandenes Objekt mit gleichem Namen wird von den Setup-Skripten übersprungen. Das bedeutet nicht automatisch, dass die vorhandene Konfiguration fachlich aktuell ist.
+> **Hinweis:** Vorhandene Objekte werden mit der Definition verglichen; Abweichungen stehen als `[WARN] ... weicht ab` im Log. Ohne `-UpdateExisting` werden sie nur gemeldet, mit `-UpdateExisting` auf die Definition gesetzt. Der Modus vorhandener DLP-Policies wird nie automatisch geändert.
 
 ## 8. Pilot- und Abnahmetests
 

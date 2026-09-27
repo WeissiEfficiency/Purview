@@ -24,19 +24,8 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
-New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
-$LogFile = Join-Path $LogPath 'Get-PublishingPolicies.log'
-
-function Write-Log {
-    param(
-        [Parameter(Mandatory = $true)][string]$Message,
-        [ValidateSet('INFO', 'WARN', 'ERROR', 'OK')][string]$Level = 'INFO'
-    )
-
-    $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
-    Write-Host $line
-    Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
-}
+Import-Module (Join-Path -Path $PSScriptRoot -ChildPath '../Modules/PurviewSetup/PurviewSetup.psd1') -Force
+$LogFile = Initialize-PurviewLog -Path $LogPath -FileName 'Get-PublishingPolicies.log'
 
 function Get-OptionalPropertyValue {
     param(
@@ -69,38 +58,6 @@ function Convert-ToCsvValue {
     }) -join '; ')
 }
 
-function Get-PolicySetting {
-    param([Parameter(Mandatory = $true)]$Policy)
-
-    # Get-LabelPolicy liefert Settings je nach Modulversion als Eintraege der Form
-    # "[key, value]" oder als XML (<setting key=".." value=".." />). Beides auswerten.
-    $settings = [ordered]@{}
-    foreach ($entry in @(Get-OptionalPropertyValue -InputObject $Policy -PropertyName 'Settings')) {
-        $text = [string]$entry
-        if ([string]::IsNullOrWhiteSpace($text)) { continue }
-
-        if ($text -match '^\s*\[(?<key>[^,\]]+),\s*(?<value>.*)\]\s*$') {
-            $settings[$Matches['key'].Trim().ToLowerInvariant()] = $Matches['value'].Trim()
-            continue
-        }
-
-        if ($text.TrimStart().StartsWith('<')) {
-            try {
-                foreach ($setting in @(([xml]$text).SelectNodes('//setting'))) {
-                    if ($setting.key) { $settings[([string]$setting.key).ToLowerInvariant()] = [string]$setting.value }
-                }
-            } catch {
-                $settings['_parseerror'] = $_.Exception.Message
-            }
-            continue
-        }
-
-        $settings['_unparsed'] = (@($settings['_unparsed'], $text) | Where-Object { $_ }) -join ' | '
-    }
-
-    return $settings
-}
-
 function Get-ConfiguredLocationText {
     param([Parameter(Mandatory = $true)]$Policy)
 
@@ -118,7 +75,7 @@ function Get-ConfiguredLocationText {
 
 $connected = $false
 try {
-    Write-Log -Message "Logpfad: $LogPath"
+    Write-PurviewLog "Logdatei: $LogFile"
 
     if ($UserPrincipalName) {
         Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorAction Stop
@@ -127,20 +84,14 @@ try {
     }
     $connected = $true
 
-    Write-Log -Message 'Publishing-Policies und Labels werden gelesen.'
+    Write-PurviewLog 'Publishing-Policies und Labels werden gelesen.'
     $sensitivityPolicies = @(Get-LabelPolicy -ErrorAction Stop)
 
     # Label-GUIDs aus defaultlabelid/outlookdefaultlabel in lesbare Namen uebersetzen.
-    $labelNamesById = @{}
-    foreach ($label in @(Get-Label -ErrorAction Stop)) {
-        foreach ($idProperty in @('ImmutableId', 'Guid')) {
-            $id = [string](Get-OptionalPropertyValue -InputObject $label -PropertyName $idProperty)
-            if ($id) { $labelNamesById[$id] = [string]$label.Name }
-        }
-    }
+    $labelNamesById = Get-PurviewLabelNameMap -Labels @(Get-Label -ErrorAction Stop)
 
     $exportRows = foreach ($policy in $sensitivityPolicies) {
-        $policySettings = Get-PolicySetting -Policy $policy
+        $policySettings = Get-PurviewPolicySetting -Policy $policy
         $defaultLabelId = if ($policySettings.Contains('defaultlabelid')) { [string]$policySettings['defaultlabelid'] } else { '' }
         $outlookDefaultId = if ($policySettings.Contains('outlookdefaultlabel')) { [string]$policySettings['outlookdefaultlabel'] } else { '' }
 
@@ -166,10 +117,10 @@ try {
         New-Item -ItemType Directory -Path $csvDirectory -Force | Out-Null
     }
     @($exportRows) | Export-Csv -LiteralPath $CsvPath -NoTypeInformation -Encoding UTF8
-    Write-Log -Level OK -Message ("{0} Publishing-Policies exportiert nach: {1}" -f @($exportRows).Count, $CsvPath)
+    Write-PurviewLog -Level OK -Message ("{0} Publishing-Policies exportiert nach: {1}" -f @($exportRows).Count, $CsvPath)
 }
 catch {
-    Write-Log -Level ERROR -Message $_.Exception.Message
+    Write-PurviewLog -Level ERROR -Message $_.Exception.Message
     throw
 }
 finally {

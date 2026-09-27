@@ -3,22 +3,30 @@
     Erstellt produktive Microsoft-Purview-Publishing-Policies.
 
 .DESCRIPTION
-    Definiert Publishing-Policies für Exchange, Legal, Finance und Leadership.
-    Ohne -Execute wird nur eine Vorschau ausgegeben. Bereits vorhandene Policies
-    werden übersprungen.
+    Definiert Publishing-Policies für alle Benutzer sowie für Legal, Finance und
+    Leadership. Ohne -Execute wird nur eine Vorschau ausgegeben.
 
     Die Team-Policies (Legal, Finance, Leadership) werden zunächst mit
     ExchangeLocation 'All' angelegt, weil New-LabelPolicy die Verteilergruppen
     im Tenant nicht direkt auflöst. Direkt danach schränkt
-    Set-PublishingPolicyGroups.ps1 sie auf die jeweilige Gruppe ein. Dieser
-    Schritt läuft standardmäßig mit; schlägt er fehl, wird ein ERROR geloggt.
+    Set-PublishingPolicyGroups.ps1 sie auf die Gruppe aus config/tenant.psd1 ein.
+    Schlägt dieser Schritt fehl, wird ein ERROR geloggt.
+
+    Vorhandene Policies werden mit der Definition verglichen (veröffentlichte
+    Labels und AdvancedSettings). Abweichungen werden als Warnung gemeldet und mit
+    -UpdateExisting korrigiert.
 
 .PARAMETER UserPrincipalName
-    UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung.
+    UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung. Mit UPN
+    verbindet sich auch die Vorschau und meldet Abweichungen.
 
 .PARAMETER Execute
-    Erstellt die Policies tatsächlich. Ohne diesen Schalter bleibt das Skript
-    im Vorschau-Modus.
+    Erstellt fehlende Policies. Ohne diesen Schalter bleibt das Skript im
+    Vorschau-Modus.
+
+.PARAMETER UpdateExisting
+    Gleicht vorhandene Policies mit -Execute an die Definition an
+    (Set-LabelPolicy -AddLabels/-RemoveLabels/-AdvancedSettings).
 
 .PARAMETER SkipGroupAssignment
     Überspringt die Gruppenzuordnung. Nur für Diagnosezwecke: Die Team-Policies
@@ -31,6 +39,9 @@
     Präfix vor allen Policy-Namen, z. B. 'Test '. Wird auch an
     Set-PublishingPolicyGroups.ps1 weitergegeben.
 
+.PARAMETER ConfigPath
+    Tenant-Konfiguration (Standard: config/tenant.psd1).
+
 .PARAMETER LogPath
     Zielordner für das Ausführungslog.
 
@@ -38,7 +49,7 @@
     .\Create-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com
 
 .EXAMPLE
-    .\Create-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com -Execute
+    .\Create-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com -Execute -UpdateExisting
 
 .NOTES
     Labelgruppen (General, Confidential, Strictly-Confidential) können nicht
@@ -47,12 +58,13 @@
     zur Laufzeit aufgelöst.
 #>
 #requires -Version 5.1
-#region Parameters
 [CmdletBinding()]
 param(
     [string]$UserPrincipalName,
 
     [switch]$Execute,
+
+    [switch]$UpdateExisting,
 
     [switch]$SkipGroupAssignment,
 
@@ -60,185 +72,184 @@ param(
 
     [string]$PolicyPrefix = '',
 
+    [string]$ConfigPath,
+
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-PublishingPolicies-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
 )
-#endregion Parameters
 
 #region Initialization
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path -Path $PSScriptRoot -ChildPath '../Modules/PurviewSetup/PurviewSetup.psd1') -Force
 
-# Logordner vorbereiten, bevor eine Verbindung zum Tenant hergestellt wird.
-New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
-$LogFile = Join-Path $LogPath 'Create-PublishingPolicies.log'
+$LogFile = Initialize-PurviewLog -Path $LogPath -FileName 'Create-PublishingPolicies.log'
+Write-PurviewLog "Logdatei: $LogFile"
+$config = Import-PurviewConfig -Path $ConfigPath
 #endregion Initialization
 
-#region Functions
-function Write-Log {
-    param(
-        [Parameter(Mandatory = $true)][string]$Message,
-        [ValidateSet('INFO', 'WARN', 'ERROR', 'OK')][string]$Level = 'INFO'
-    )
-
-    $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
-    Write-Host $line
-    Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
-}
-
-function Resolve-LabelId {
-    param(
-        [Parameter(Mandatory = $true)][string]$LabelName,
-        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Labels
-    )
-
-    # Nur ueber den eindeutigen Namen aufloesen: Anzeigenamen wie 'Intern' kommen
-    # in mehreren Labelgruppen vor.
-    $label = $Labels | Where-Object { [string]$_.Name -eq $LabelName } | Select-Object -First 1
-    if ($null -eq $label) {
-        throw "Sensitivity label '$LabelName' wurde im Tenant nicht gefunden."
-    }
-
-    if ($label.PSObject.Properties['ImmutableId'] -and $label.ImmutableId) {
-        return [string]$label.ImmutableId
-    }
-
-    if ($label.PSObject.Properties['Guid'] -and $label.Guid) {
-        return [string]$label.Guid
-    }
-
-    throw "Sensitivity label '$LabelName' hat keine gültige GUID für defaultlabelid."
-}
-#endregion Functions
-
 #region PolicyDefinitions
-# Die Policies referenzieren die produktiven Labels über ihre Namen. GroupTarget
-# markiert Team-Policies, die Set-PublishingPolicyGroups.ps1 danach einschränkt.
-$policyTemplates = @(
+# GroupKey verweist auf config/tenant.psd1 (Groups); diese Policies schränkt
+# Set-PublishingPolicyGroups.ps1 nach dem Anlegen auf die Gruppe ein.
+$teamSettings = @{ mandatory = 'true'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = $config.CustomHelpUrl }
+$policies = @(
     [pscustomobject]@{
-        Name        = 'Policy All, no Standard, No Inheritence'
-        Labels      = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
-        GroupTarget = $false
-        Settings    = @{ requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
-    },
+        Name     = 'Policy All, no Standard, No Inheritence'
+        GroupKey = ''
+        Labels   = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
+        Settings = @{ requiredowngradejustification = 'true'; customurl = $config.CustomHelpUrl }
+    }
     [pscustomobject]@{
-        Name        = 'Legal, Intern Standard, Highest Inheritence for Mails'
-        Labels      = @('Public', 'General-Intern', 'Confidential-Legal')
-        GroupTarget = $true
-        Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
-    },
+        Name     = 'Legal, Intern Standard, Highest Inheritence for Mails'
+        GroupKey = 'Legal'
+        Labels   = @('Public', 'General-Intern', 'Confidential-Legal')
+        Settings = $teamSettings.Clone() + @{ outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern' }
+    }
     [pscustomobject]@{
-        Name        = 'Finance, Confidential Intern, Perdefinded but Inheritence'
-        Labels      = @('Public', 'Confidential-Intern', 'Confidential-Finance')
-        GroupTarget = $true
-        Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'Confidential-Intern'; defaultlabelid = 'Confidential-Intern'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
-    },
+        Name     = 'Finance, Confidential Intern, Perdefinded but Inheritence'
+        GroupKey = 'Finance'
+        Labels   = @('Public', 'Confidential-Intern', 'Confidential-Finance')
+        Settings = @{ mandatory = 'true'; attachmentaction = 'recommended'; requiredowngradejustification = 'true'; customurl = $config.CustomHelpUrl; outlookdefaultlabel = 'Confidential-Intern'; defaultlabelid = 'Confidential-Intern' }
+    }
     [pscustomobject]@{
-        Name        = 'Leadership, Intern , Inheritence'
-        Labels      = @('Public', 'General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')
-        GroupTarget = $true
-        Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
+        Name     = 'Leadership, Intern , Inheritence'
+        GroupKey = 'Leadership'
+        Labels   = @('Public', 'General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')
+        Settings = $teamSettings.Clone() + @{ outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern' }
     }
 )
-foreach ($policy in $policyTemplates) {
-    $policy.Name = $PolicyPrefix + $policy.Name
-    $policy.Labels = @($policy.Labels | ForEach-Object { $LabelPrefix + $_ })
-    foreach ($key in @('defaultlabelid', 'outlookdefaultlabel')) {
-        if ($policy.Settings.ContainsKey($key)) { $policy.Settings[$key] = $LabelPrefix + $policy.Settings[$key] }
-    }
-}
+$labelIdSettings = @('defaultlabelid', 'outlookdefaultlabel')
 #endregion PolicyDefinitions
 
 #region Connection
-Write-Log -Message "Logpfad: $LogPath"
 if (-not $Execute) {
-    Write-Log -Level WARN -Message 'Vorschau-Modus: Es werden keine Publishing-Policies erstellt. Für die Erstellung -Execute verwenden.'
+    Write-PurviewLog -Level WARN 'Vorschau-Modus: Es werden keine Publishing-Policies erstellt oder geändert. Für die Ausführung -Execute verwenden.'
 }
 
-if ($Execute -or $UserPrincipalName) {
-    if ($UserPrincipalName) {
-        Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorAction Stop
-    } else {
-        Connect-IPPSSession -ErrorAction Stop
-    }
-}
-#endregion Connection
+$connected = Connect-PurviewSession -UserPrincipalName $UserPrincipalName -Required:$Execute -DisableWam:([bool]$config.DisableWam)
 
-#region PolicyCreation
 # Labels und vorhandene Policies einmalig laden, statt pro Policy Get-* -Identity
 # aufzurufen: ein "nicht gefunden" kann dort je nach Modulversion terminierend sein.
 $tenantLabels = @()
-$existingPolicyNames = @()
-if ($Execute) {
+$existingPolicies = @{}
+if ($connected) {
     try {
         $tenantLabels = @(Get-Label -ErrorAction Stop)
-        $existingPolicyNames = @(Get-LabelPolicy -ErrorAction Stop | ForEach-Object { [string]$_.Name })
+        foreach ($policy in @(Get-LabelPolicy -ErrorAction Stop)) { $existingPolicies[[string]$policy.Name] = $policy }
     } catch {
-        Write-Log -Level ERROR -Message "Labels oder Publishing-Policies konnten nicht gelesen werden: $($_.Exception.Message)"
+        Write-PurviewLog -Level ERROR "Labels oder Publishing-Policies konnten nicht gelesen werden: $($_.Exception.Message)"
         throw
     }
 }
+$labelNameMap = Get-PurviewLabelNameMap -Labels $tenantLabels
+#endregion Connection
 
-# Policies einzeln prüfen, damit ein Fehler die übrigen Einträge nicht verdeckt.
-foreach ($policy in $policyTemplates) {
-    if (-not $Execute) {
-        $target = if ($policy.GroupTarget) { 'All, danach Gruppenzuordnung' } else { 'All' }
-        Write-Log -Level WARN -Message ("Vorschau: '{0}' mit {1} Labels würde erstellt werden (Exchange: {2})." -f $policy.Name, $policy.Labels.Count, $target)
+#region Policies
+# Policies einzeln verarbeiten, damit ein Fehler die übrigen Einträge nicht verdeckt.
+foreach ($definition in $policies) {
+    $name = $PolicyPrefix + $definition.Name
+    $labelNames = @($definition.Labels | ForEach-Object { $LabelPrefix + $_ })
+
+    if (-not $connected) {
+        $target = if ($definition.GroupKey) { "All, danach Gruppe $($config.Groups[$definition.GroupKey].Identity)" } else { 'All' }
+        Write-PurviewLog -Level WARN ("Vorschau: '{0}' mit {1} Labels würde erstellt werden (Exchange: {2})." -f $name, $labelNames.Count, $target)
+        continue
+    }
+
+    if (-not $existingPolicies.ContainsKey($name) -and -not $Execute) {
+        Write-PurviewLog -Level WARN ("Vorschau: '{0}' mit {1} Labels würde erstellt werden." -f $name, $labelNames.Count)
         continue
     }
 
     try {
-        if ($existingPolicyNames -contains $policy.Name) {
-            Write-Log -Level WARN -Message "Publishing-Policy '$($policy.Name)' existiert bereits."
+        # Labelnamen in den Settings durch GUIDs ersetzen. In der Vorschau können
+        # Labels fehlen, die Schritt 1 erst mit -Execute anlegt.
+        $settings = $definition.Settings.Clone()
+        try {
+            foreach ($key in $labelIdSettings) {
+                if ($settings.ContainsKey($key)) {
+                    $settings[$key] = Resolve-PurviewLabelId -LabelName ($LabelPrefix + $settings[$key]) -Labels $tenantLabels
+                }
+            }
+        } catch {
+            if ($Execute) { throw }
+            Write-PurviewLog -Level WARN "Vorschau: Publishing-Policy '$name' kann nicht vollständig verglichen werden: $($_.Exception.Message)"
             continue
         }
 
-        $settings = $policy.Settings.Clone()
-        foreach ($key in @('defaultlabelid', 'outlookdefaultlabel')) {
-            if ($settings.ContainsKey($key)) {
-                $settings[$key] = Resolve-LabelId -LabelName ([string]$settings[$key]) -Labels $tenantLabels
+        if ($existingPolicies.ContainsKey($name)) {
+            $existing = $existingPolicies[$name]
+
+            # Veröffentlichte Labels vergleichen (Get-LabelPolicy liefert Namen oder GUIDs).
+            $actualLabels = @(@($existing.PSObject.Properties['Labels'] | ForEach-Object { $_.Value }) | Where-Object { $_ } | ForEach-Object {
+                $value = [string]$_
+                if ($labelNameMap.ContainsKey($value)) { $labelNameMap[$value] } else { $value }
+            })
+            $missingLabels = @($labelNames | Where-Object { $actualLabels -notcontains $_ })
+            $extraLabels = @($actualLabels | Where-Object { $labelNames -notcontains $_ })
+
+            # AdvancedSettings vergleichen.
+            $actualSettings = Get-PurviewPolicySetting -Policy $existing
+            $settingDrift = @(foreach ($key in $settings.Keys) {
+                $actualValue = if ($actualSettings.Contains($key)) { [string]$actualSettings[$key] } else { '' }
+                if ((ConvertTo-PurviewComparableValue $settings[$key]) -ne (ConvertTo-PurviewComparableValue $actualValue)) {
+                    [pscustomobject]@{ Property = $key; Desired = $settings[$key]; Actual = $actualValue }
+                }
+            })
+
+            if ($missingLabels.Count -eq 0 -and $extraLabels.Count -eq 0 -and $settingDrift.Count -eq 0) {
+                Write-PurviewLog "Publishing-Policy '$name' existiert bereits und entspricht der Definition."
+                continue
             }
+
+            $details = @()
+            if ($missingLabels.Count -gt 0) { $details += "fehlende Labels: $($missingLabels -join ', ')" }
+            if ($extraLabels.Count -gt 0) { $details += "zusätzliche Labels: $($extraLabels -join ', ')" }
+            if ($settingDrift.Count -gt 0) { $details += "Settings: $(Format-PurviewDrift -Drift $settingDrift)" }
+            Write-PurviewLog -Level WARN "Publishing-Policy '$name' weicht ab: $($details -join ' | ')"
+
+            if (-not $UpdateExisting) { continue }
+            if (-not $Execute) {
+                Write-PurviewLog -Level WARN "Vorschau: Publishing-Policy '$name' würde angeglichen werden."
+                continue
+            }
+
+            $setParams = @{ Identity = $name; ErrorAction = 'Stop' }
+            if ($missingLabels.Count -gt 0) { $setParams.AddLabels = $missingLabels }
+            if ($extraLabels.Count -gt 0) { $setParams.RemoveLabels = $extraLabels }
+            if ($settingDrift.Count -gt 0) { $setParams.AdvancedSettings = $settings }
+            Set-LabelPolicy @setParams | Out-Null
+            Write-PurviewLog -Level OK "Publishing-Policy '$name' angeglichen."
+            continue
         }
 
-        $policyParams = @{
-            Name             = $policy.Name
-            Labels           = $policy.Labels
-            ExchangeLocation = @('All')
-            AdvancedSettings = $settings
-        }
-        New-LabelPolicy @policyParams -ErrorAction Stop | Out-Null
-        Write-Log -Level OK -Message "Publishing-Policy '$($policy.Name)' erstellt."
+        New-LabelPolicy -Name $name -Labels $labelNames -ExchangeLocation @('All') -AdvancedSettings $settings -ErrorAction Stop | Out-Null
+        Write-PurviewLog -Level OK "Publishing-Policy '$name' erstellt."
     } catch {
-        Write-Log -Level ERROR -Message "Publishing-Policy '$($policy.Name)': $($_.Exception.Message)"
+        Write-PurviewLog -Level ERROR "Publishing-Policy '$name': $($_.Exception.Message)"
     }
 }
-#endregion PolicyCreation
+#endregion Policies
 
 #region GroupAssignment
 # Ohne diesen Schritt bleiben die Team-Policies (inkl. Leadership-Labels und
 # Pflicht-Labeling) für alle Benutzer aktiv. Fehler werden daher als ERROR geloggt.
 if ($SkipGroupAssignment) {
-    Write-Log -Level WARN -Message 'Gruppenzuordnung übersprungen (-SkipGroupAssignment). Die Team-Policies gelten für alle Benutzer.'
+    Write-PurviewLog -Level WARN 'Gruppenzuordnung übersprungen (-SkipGroupAssignment). Die Team-Policies gelten für alle Benutzer.'
 } else {
     $groupScript = Join-Path -Path $PSScriptRoot -ChildPath 'Set-PublishingPolicyGroups.ps1'
     $groupLogPath = Join-Path -Path $LogPath -ChildPath 'GroupAssignment'
-    if (-not (Test-Path -LiteralPath $groupScript -PathType Leaf)) {
-        Write-Log -Level ERROR -Message "Gruppenskript nicht gefunden: $groupScript"
-    } else {
-        Write-Log -Message 'Starte Gruppenzuordnung der Team-Policies.'
-        & $groupScript -Execute:([bool]$Execute) -PolicyNamePrefix $PolicyPrefix -LogPath $groupLogPath
+    Write-PurviewLog 'Starte Gruppenzuordnung der Team-Policies.'
+    & $groupScript -Execute:([bool]$Execute) -PolicyNamePrefix $PolicyPrefix -ConfigPath $ConfigPath -LogPath $groupLogPath
 
-        $groupLog = Join-Path -Path $groupLogPath -ChildPath 'Set-PublishingPolicyGroups.log'
-        $groupErrors = @(Select-String -LiteralPath $groupLog -Pattern '[ERROR]' -SimpleMatch -ErrorAction SilentlyContinue)
-        if ($groupErrors.Count -gt 0) {
-            Write-Log -Level ERROR -Message "Gruppenzuordnung meldet $($groupErrors.Count) Fehler. Die betroffenen Team-Policies gelten weiterhin für alle Benutzer. Details: $groupLog"
-        } else {
-            Write-Log -Level OK -Message ('Gruppenzuordnung abgeschlossen{0}.' -f $(if ($Execute) { '' } else { ' (Vorschau)' }))
-        }
+    $groupLog = Join-Path -Path $groupLogPath -ChildPath 'Set-PublishingPolicyGroups.log'
+    $groupErrors = @(Select-String -LiteralPath $groupLog -Pattern '[ERROR]' -SimpleMatch -ErrorAction SilentlyContinue)
+    if ($groupErrors.Count -gt 0) {
+        Write-PurviewLog -Level ERROR "Gruppenzuordnung meldet $($groupErrors.Count) Fehler. Die betroffenen Team-Policies gelten weiterhin für alle Benutzer. Details: $groupLog"
+    } else {
+        Write-PurviewLog -Level OK ('Gruppenzuordnung abgeschlossen{0}.' -f $(if ($Execute) { '' } else { ' (Vorschau)' }))
     }
 }
 #endregion GroupAssignment
 
-#region Completion
-Write-Log -Message 'Skript beendet.'
-#endregion Completion
+Write-PurviewLog 'Skript beendet.'

@@ -21,6 +21,10 @@ param(
 
     [switch]$Execute,
 
+    [switch]$UpdateExisting,
+
+    [string]$ConfigPath,
+
     [switch]$IncludeGoogleWorkspace,
 
     [string]$IncidentReportRecipient,
@@ -37,12 +41,14 @@ $ErrorActionPreference = 'Stop'
 $mainScript = Join-Path -Path $PSScriptRoot -ChildPath '../Main Setup/Create-DlpComplianceRule.ps1'
 $parameters = @{
     Execute  = [bool]$Execute
+    UpdateExisting = [bool]$UpdateExisting
     LogPath  = $LogPath
     LabelPrefix = 'Test-'
     NamePrefix  = 'Test '
     IncludeGoogleWorkspace = [bool]$IncludeGoogleWorkspace
 }
 if ($UserPrincipalName) { $parameters.UserPrincipalName = $UserPrincipalName }
+if ($ConfigPath) { $parameters.ConfigPath = $ConfigPath }
 if ($IncidentReportRecipient) { $parameters.IncidentReportRecipient = $IncidentReportRecipient }
 if ($EncryptionTemplate) { $parameters.EncryptionTemplate = $EncryptionTemplate }
 

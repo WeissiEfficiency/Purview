@@ -2,9 +2,9 @@ name: PowerShell lint
 
 on:
   push:
-    paths: ['**.ps1', 'PSScriptAnalyzerSettings.psd1', '.github/workflows/powershell-lint.yml']
+    paths: ['**.ps1', '**.psm1', '**.psd1', '.github/workflows/powershell-lint.yml']
   pull_request:
-    paths: ['**.ps1', 'PSScriptAnalyzerSettings.psd1', '.github/workflows/powershell-lint.yml']
+    paths: ['**.ps1', '**.psm1', '**.psd1', '.github/workflows/powershell-lint.yml']
 
 permissions:
   contents: read
@@ -19,7 +19,7 @@ jobs:
         shell: pwsh
         run: |
           $failed = $false
-          foreach ($file in Get-ChildItem -Recurse -Filter *.ps1) {
+          foreach ($file in Get-ChildItem -Recurse -Include *.ps1, *.psm1, *.psd1) {
             $errors = $null
             [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors)
             if ($errors) { $failed = $true; Write-Host "::error file=$($file.FullName)::$($errors -join '; ')" }

@@ -1,122 +1,109 @@
 ﻿<#
 .SYNOPSIS
-    Erstellt produktive DLP-Regeln für Microsoft Purview.
+    Erstellt die DLP-Policies und -Regeln für Microsoft Purview.
 
 .DESCRIPTION
-    Erstellt die DLP-Regeln für SPO/ODB, Exchange Online, Copilot, Endpoint und
-    Google Workspace. Ohne -Execute wird nur eine Vorschau ausgegeben. Bereits
-    vorhandene Regeln werden übersprungen.
+    Erstellt die DLP-Policies und -Regeln für SPO/ODB, Exchange Online, Copilot,
+    Endpoint und optional Google Workspace. Ohne -Execute wird nur eine Vorschau
+    ausgegeben.
+
+    Vorhandene Policies und Regeln werden mit der Definition verglichen;
+    Abweichungen werden als Warnung gemeldet. Mit -UpdateExisting werden
+    vorhandene Regeln auf die Definition gesetzt (Set-DlpComplianceRule). Der
+    Modus vorhandener Policies wird nie automatisch geändert.
 
 .PARAMETER UserPrincipalName
-    UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung.
+    UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung. Mit UPN
+    verbindet sich auch die Vorschau und meldet Abweichungen.
 
 .PARAMETER Execute
-    Erstellt die Regeln tatsächlich. Ohne diesen Schalter bleibt das Skript im
-    Vorschau-Modus.
+    Erstellt fehlende Policies und Regeln. Ohne diesen Schalter bleibt das Skript
+    im Vorschau-Modus.
 
-.PARAMETER LabelPrefix
-    Präfix vor allen Labelnamen in den Bedingungen, z. B. 'Test-' für die
-    Testlabels. Wird von Test/Create-TestDlpComplianceRules.ps1 gesetzt.
-
-.PARAMETER NamePrefix
-    Präfix vor allen Policy- und Regelnamen, z. B. 'Test '. DLP-Regelnamen
-    müssen tenantweit eindeutig sein; ohne Präfix würden Testregeln mit den
-    Produktionsregeln kollidieren.
+.PARAMETER UpdateExisting
+    Setzt vorhandene Regeln mit -Execute auf die Definition.
 
 .PARAMETER IncludeGoogleWorkspace
     Erstellt zusätzlich die optionale Google-Workspace-Policy und -Regel. Die
     Regel wurde im Tenant bisher abgelehnt (ContentContainsSensitiveInformation
     wird für diesen Workload nicht unterstützt) und muss noch überarbeitet werden.
 
-.PARAMETER LogPath
-    Zielordner für das Ausführungslog.
+.PARAMETER LabelPrefix
+    Präfix vor allen Labelnamen in den Bedingungen, z. B. 'Test-'.
+
+.PARAMETER NamePrefix
+    Präfix vor allen Policy- und Regelnamen, z. B. 'Test '. DLP-Regelnamen
+    müssen tenantweit eindeutig sein.
 
 .PARAMETER IncidentReportRecipient
-    Postfach, das Incident Reports und Admin-Benachrichtigungen erhält. Muss im
-    Ziel-Tenant existieren.
+    Überschreibt IncidentReportRecipient aus der Tenant-Konfiguration.
 
 .PARAMETER EncryptionTemplate
-    Name der RMS-Vorlage für die EXO-Regel 'Encryption'. Standard ist die
-    integrierte Vorlage 'Encrypt' (Purview Message Encryption), die externe
-    Empfänger öffnen können. Die frühere Vorlage 'Confidential \ All Employees'
-    existiert im Tenant nicht. Verfügbare Vorlagen: Get-RMSTemplate (Exchange Online).
+    Überschreibt EncryptionTemplate aus der Tenant-Konfiguration (RMS-Vorlage
+    der Regel 'Encryption'; verfügbare Vorlagen: Get-RMSTemplate in Exchange Online).
 
 .PARAMETER PolicyMode
     Modus für neu erstellte DLP-Policies. Standard ist TestWithNotifications
     (Simulation mit Policy Tips). Erst nach Auswertung mit -PolicyMode Enable
-    erstellen oder im Portal umschalten. Bestehende Policies bleiben unverändert.
+    erstellen oder im Portal umschalten.
+
+.PARAMETER ConfigPath
+    Tenant-Konfiguration (Standard: config/tenant.psd1).
+
+.PARAMETER LogPath
+    Zielordner für das Ausführungslog.
 
 .EXAMPLE
     .\Create-DlpComplianceRule.ps1 -UserPrincipalName admin@contoso.com
 
 .EXAMPLE
-    .\Create-DlpComplianceRule.ps1 -UserPrincipalName admin@contoso.com -Execute
+    .\Create-DlpComplianceRule.ps1 -UserPrincipalName admin@contoso.com -Execute -UpdateExisting
 
-.NOTES
-    Die DLP-Bedingungen verwenden die produktiven Labelnamen ohne Testpräfix.
-
-.COMPONENT
-    Microsoft Purview
-.EXTERNALHELP
+.LINK
     https://learn.microsoft.com/de-de/purview/data-loss-prevention-policies
-.FUNCTIONALITY
-    Dieses Skript erstellt DLP-Regeln fuer die Produktion. Die Regeln werden in den jeweiligen Workloads (SPO/ODB, EXO, Copilot, Endpoint, Google Workspace) erstellt.
-.PARAMETER UserPrincipalName
-    Der UserPrincipalName des Kontos, das fuer die Verbindung zu den Workloads verwendet werden soll. Wenn nicht angegeben, wird das aktuelle Konto verwendet.
-.PARAMETER Execute
-    Wenn angegeben, werden die DLP-Regeln erstellt. Wenn nicht angegeben, wird nur eine Vorschau der zu erstellenden Regeln angezeigt.
-.PARAMETER LogPath
-    Der Pfad, in dem die Log-Datei erstellt werden soll. Standardwert ist ein Unterordner "Logs" im aktuellen Verzeichnis mit einem Zeitstempel.
-.EXAMPLE
-    .\Create-DlpComplianceRule.ps1 -UserPrincipalName "user@company.com" -Execute -LogPath "C:\Logs\DlpComplianceRules"
-    Erstellt die DLP-Regeln fuer die Produktion mit dem angegebenen UserPrincipalName und speichert die Log-Datei im angegebenen Pfad.
-.NOTES
-    Autor: Weissi
-    Version: 1.1
-    Datum: 28.08.2026
 #>
-
-#region Parameters
 #requires -Version 5.1
 [Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'LabelPrefix', Justification = 'Wird als Standardwert von New-LabelCondition verwendet; funktioniert auch beim Dot-Sourcing durch Start-PurviewSetup.ps1.')]
 [CmdletBinding()]
 param(
     [string]$UserPrincipalName,
+
     [switch]$Execute,
+
+    [switch]$UpdateExisting,
+
     [switch]$IncludeGoogleWorkspace,
+
     [string]$LabelPrefix = '',
+
     [string]$NamePrefix = '',
-    [ValidateNotNullOrEmpty()]
-    [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-DlpComplianceRules-Production-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))),
-    [ValidateNotNullOrEmpty()]
-    [string]$IncidentReportRecipient = 'admin@M365DS559840.onmicrosoft.com',
-    [ValidateNotNullOrEmpty()]
-    [string]$EncryptionTemplate = 'Encrypt',
+
+    [string]$IncidentReportRecipient,
+
+    [string]$EncryptionTemplate,
+
     [ValidateSet('TestWithNotifications', 'TestWithoutNotifications', 'Enable')]
-    [string]$PolicyMode = 'TestWithNotifications'
+    [string]$PolicyMode = 'TestWithNotifications',
+
+    [string]$ConfigPath,
+
+    [ValidateNotNullOrEmpty()]
+    [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-DlpComplianceRules-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
 )
 
+#region Initialization
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Import-Module (Join-Path -Path $PSScriptRoot -ChildPath '../Modules/PurviewSetup/PurviewSetup.psd1') -Force
 
-# Das Log wird vor der Tenant-Anmeldung angelegt, damit auch Verbindungsfehler dokumentiert werden.
-New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
-$LogFile = Join-Path $LogPath 'Create-DlpComplianceRules-Production.log'
-#endregion Parameters
-
+$LogFile = Initialize-PurviewLog -Path $LogPath -FileName 'Create-DlpComplianceRules.log'
+Write-PurviewLog "Logdatei: $LogFile"
+$config = Import-PurviewConfig -Path $ConfigPath
+if ([string]::IsNullOrWhiteSpace($IncidentReportRecipient)) { $IncidentReportRecipient = $config.IncidentReportRecipient }
+if ([string]::IsNullOrWhiteSpace($EncryptionTemplate)) { $EncryptionTemplate = $config.EncryptionTemplate }
+#endregion Initialization
 
 #region Functions
-function Write-Log {
-    param(
-        [Parameter(Mandatory = $true)][string]$Message,
-        [ValidateSet('INFO', 'WARN', 'ERROR', 'OK')][string]$Level = 'INFO'
-    )
-
-    $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
-    Write-Host $line
-    Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
-}
-
 function New-LabelCondition {
     param(
         [Parameter(Mandatory = $true)][string[]]$Labels,
@@ -156,73 +143,91 @@ function New-AdvancedRule {
 }
 #endregion Functions
 
-#region Main
-$spoOdbPolicy = $NamePrefix + 'SPO ODB - Restrict Sharing Outside'
-$exoPolicy = $NamePrefix + 'EXO - All user - Restrict sharing outside'
-$copilotPolicy = $NamePrefix + 'AI -All users - Block processing'
-$endpointPolicy = $NamePrefix + 'Endpoint - All users - Restrict upload to AI Apps'
+#region Definitions
+$spoOdbPolicy          = $NamePrefix + 'SPO ODB - Restrict Sharing Outside'
+$exoPolicy             = $NamePrefix + 'EXO - All user - Restrict sharing outside'
+$copilotPolicy         = $NamePrefix + 'AI -All users - Block processing'
+$endpointPolicy        = $NamePrefix + 'Endpoint - All users - Restrict upload to AI Apps'
 $googleWorkspacePolicy = $NamePrefix + 'GoogleDrive - All users - Block usage'
 
-# BlockAccess wird fuer den Applications-Workload (Copilot) abgelehnt
+$policyDefinitions = @(
+    [pscustomobject]@{ Name = $spoOdbPolicy;   Optional = $false; Parameters = @{ SharePointLocation = 'All'; OneDriveLocation = 'All' } }
+    [pscustomobject]@{ Name = $exoPolicy;      Optional = $false; Parameters = @{ ExchangeLocation = 'All' } }
+    [pscustomobject]@{ Name = $copilotPolicy;  Optional = $false; Parameters = @{
+            Locations         = '[{"Workload":"Applications","Location":"470f2276-e011-4e9d-a6ec-20768be3a4b0","Inclusions":[{"Type":"Tenant","Identity":"All"}]}]'
+            EnforcementPlanes = @('CopilotExperiences')
+        } }
+    [pscustomobject]@{ Name = $endpointPolicy; Optional = $false; Parameters = @{ EndpointDlpLocation = 'All' } }
+    [pscustomobject]@{ Name = $googleWorkspacePolicy; Optional = $true; Parameters = @{ ThirdPartyAppDlpLocation = 'All' } }
+)
+
+$sensitiveLabels = @('Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
+$allLabels = @('General-Intern', 'General-Extern') + $sensitiveLabels
+
+# BlockAccess wird für den Applications-Workload (Copilot) abgelehnt
 # (ErrorUnsupportedActionForApplicationsWorkloadException). Copilot-Regeln
-# schliessen Inhalte stattdessen ueber RestrictAccess von der Verarbeitung aus.
+# schließen Inhalte stattdessen über RestrictAccess von der Verarbeitung aus.
 $copilotRestrictAccess = @(@{ setting = 'ExcludeContentProcessing'; value = 'Block' })
+
+# Endpoint: BlockAccess allein beschränkt keine Uploads. CloudEgress blockiert das
+# Hochladen gekennzeichneter Dateien in eingeschränkte Cloud-Dienste bzw.
+# nicht erlaubte Browser. Welche Domains (z. B. KI-Apps) eingeschränkt sind, wird
+# in den Endpoint-DLP-Einstellungen des Tenants festgelegt (Dienstdomänen).
+$endpointRestrictions = @(@{ Setting = 'CloudEgress'; Value = 'Block' })
 
 $rules = @(
     # SPO/ODB: externe Freigaben von gekennzeichneten Dokumenten kontrollieren.
-    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'Legal sharing violation with notification options'; Policy = $spoOdbPolicy; Parameters = @{
+    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'Legal sharing violation with notification options'; Policy = $spoOdbPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels 'Confidential-Legal'), @{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' })
         BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
         GenerateIncidentReport = @($IncidentReportRecipient, 'SiteAdmin'); NotifyUser = 'LastModifier'
         NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'; NotifyPolicyTipCustomText = 'DLP violation legal documents'
-    } },
-    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'Strictly confidential personalized sharing'; Policy = $spoOdbPolicy; Parameters = @{
+    } }
+    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'Strictly confidential personalized sharing'; Policy = $spoOdbPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels 'Strictly-Confidential-Personalized'), @{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' })
         EnforcePortalAccess = $true; GenerateAlert = 'true'; GenerateIncidentReport = $IncidentReportRecipient
-    } },
-    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'No sharing outside org'; Policy = $spoOdbPolicy; Parameters = @{
+    } }
+    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'No sharing outside org'; Policy = $spoOdbPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels @('General-Intern', 'Confidential-Intern', 'Confidential-Finance')), @{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' })
         BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'; GenerateIncidentReport = 'SiteAdmin'
         NotifyUser = 'LastModifier'; NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'
-    } },
-    # Nur Benachrichtigung/Alert, kein StopPolicyProcessing: die nachfolgenden
-    # Verschluesselungs- und Blockregeln muessen fuer Proton-Empfaenger weiter greifen.
-    [pscustomobject]@{ Workload = 'EXO'; Name = 'Recipient domain is proton mail - needs approval'; Policy = $exoPolicy; Parameters = @{
+    } }
+    # EXO: Proton nur melden, kein StopPolicyProcessing, damit die nachfolgenden
+    # Verschlüsselungs- und Blockregeln weiter greifen.
+    [pscustomobject]@{ Workload = 'EXO'; Name = 'Recipient domain is proton mail - needs approval'; Policy = $exoPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @(
-            @{ ConditionName = 'RecipientDomainIs'; Value = @('pm.me', 'proton.me', 'protonmail.com', 'protonmail.ch') }
-            (New-LabelCondition -Labels @('General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized') -Operator Or)
+            @{ ConditionName = 'RecipientDomainIs'; Value = @($config.ProtonDomains) }
+            (New-LabelCondition -Labels $allLabels -Operator Or)
         )
         EnforcePortalAccess = $true; GenerateAlert = 'true'; NotifyUser = 'LastModifier'; NotifyUserType = 'Email, PolicyTip'
         NotifyPolicyTipDisplayOption = 'Tip'
-    } },
-	# EXO: externe Nachrichten verschlüsseln oder blockieren.
-    [pscustomobject]@{ Workload = 'EXO'; Name = 'Encryption'; Policy = $exoPolicy; Parameters = @{
+    } }
+    # EXO: externe Nachrichten verschlüsseln oder blockieren.
+    [pscustomobject]@{ Workload = 'EXO'; Name = 'Encryption'; Policy = $exoPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' }, (New-LabelCondition -Labels 'General-Intern'))
         EncryptRMSTemplate = $EncryptionTemplate; EnforcePortalAccess = $true; GenerateAlert = 'true'
         NotifyUser = 'LastModifier'; NotifyUserType = 'PolicyTip'; NotifyPolicyTipDisplayOption = 'Dialog'; StopPolicyProcessing = $true
-    } },
-    # Die Bedingung prueft Confidential-Intern; der Name beschreibt das jetzt korrekt.
-    [pscustomobject]@{ Workload = 'EXO'; Name = 'Block sharing of confidential internal content outside org'; Policy = $exoPolicy; Parameters = @{
+    } }
+    [pscustomobject]@{ Workload = 'EXO'; Name = 'Block sharing of confidential internal content outside org'; Policy = $exoPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' }, (New-LabelCondition -Labels 'Confidential-Intern'))
         BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'; NotifyUser = @('LastModifier', $IncidentReportRecipient)
         NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'; NotifyPolicyTipCustomText = "Don't share internal documents"; StopPolicyProcessing = $true
-    } },
-    [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block labled content from beeing process Confidential Intern up'; Policy = $copilotPolicy; Parameters = @{
+    } }
+    # Copilot: gekennzeichnete Inhalte und externe Mails von der Verarbeitung ausschließen.
+    [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block labled content from beeing process Confidential Intern up'; Policy = $copilotPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels @('Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern')))
         RestrictAccess = $copilotRestrictAccess; EnforcePortalAccess = $true; GenerateAlert = 'true'
-    } },
-	# Copilot: sensible Inhalte und externe Absender von der Verarbeitung ausschliessen.
-    [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block Mails from ourside from beeing processed'; Policy = $copilotPolicy; Parameters = @{
+    } }
+    [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block Mails from ourside from beeing processed'; Policy = $copilotPolicy; Optional = $false; Parameters = @{
         AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'FromScope'; Value = 'NotInOrganization' })
         RestrictAccess = $copilotRestrictAccess; EnforcePortalAccess = $true; GenerateAlert = 'true'
-    } },
-    [pscustomobject]@{ Workload = 'Endpoint'; Name = 'Sensitiv data block upload to restricted cloud apps'; Policy = $endpointPolicy; Parameters = @{
-        AdvancedRule = New-AdvancedRule @(
-            (New-LabelCondition -Labels @('Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized'))
-        )
-        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'
-    } },
-	# Google Workspace: sensible externe Uploads verhindern.
+    } }
+    # Endpoint: Zugriff blockieren und Upload in eingeschränkte Cloud-Dienste verhindern.
+    [pscustomobject]@{ Workload = 'Endpoint'; Name = 'Sensitiv data block upload to restricted cloud apps'; Policy = $endpointPolicy; Optional = $false; Parameters = @{
+        AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels $sensitiveLabels))
+        BlockAccess = $true; EndpointDlpRestrictions = $endpointRestrictions; EnforcePortalAccess = $true; GenerateAlert = 'true'
+    } }
+    # Google Workspace: sensible externe Uploads verhindern (optional).
     [pscustomobject]@{ Workload = 'Google Workspace'; Name = 'Block upload to google drive'; Policy = $googleWorkspacePolicy; Optional = $true; Parameters = @{
         AdvancedRule = New-AdvancedRule @(
             (New-LabelCondition -Labels @('General-Intern', 'Confidential-Intern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized'))
@@ -231,130 +236,129 @@ $rules = @(
         BlockAccess = $true; EnforcePortalAccess = $true; NotifyUser = 'LastModifier'; NotifyPolicyTipDisplayOption = 'Tip'
     } }
 )
-foreach ($rule in $rules) { $rule.Name = $NamePrefix + $rule.Name }
+foreach ($rule in $rules) {
+    $rule.Name = $NamePrefix + $rule.Name
+    # StopPolicyProcessing immer explizit setzen, damit Abweichungen (z. B. ein
+    # alter Wert $true) erkannt und mit -UpdateExisting korrigiert werden.
+    if (-not $rule.Parameters.ContainsKey('StopPolicyProcessing')) { $rule.Parameters.StopPolicyProcessing = $false }
+}
 
-Write-Log -Message "Logpfad: $LogPath"
-Write-Log -Message ("Regeln geladen: {0} (SPO/ODB: {1}, EXO: {2}, Copilot: {3}, Endpoint: {4}, Google Workspace: {5})" -f $rules.Count, @($rules | Where-Object Workload -eq 'SPO/ODB').Count, @($rules | Where-Object Workload -eq 'EXO').Count, @($rules | Where-Object Workload -eq 'Copilot').Count, @($rules | Where-Object Workload -eq 'Endpoint').Count, @($rules | Where-Object Workload -eq 'Google Workspace').Count)
+# Eigenschaften, die Get-DlpComplianceRule zuverlässig zurückliefert und die
+# daher für die Abweichungsmeldung verglichen werden.
+$comparedRuleProperties = @('StopPolicyProcessing', 'BlockAccess', 'EncryptRMSTemplate', 'NotifyUser', 'NotifyUserType', 'NotifyPolicyTipDisplayOption', 'NotifyPolicyTipCustomText', 'GenerateIncidentReport')
+#endregion Definitions
 
+#region Connection
 if (-not $Execute) {
-    Write-Log -Level WARN -Message 'Vorschau-Modus: Es werden keine DLP-Regeln erstellt. Fuer die Erstellung -Execute verwenden.'
+    Write-PurviewLog -Level WARN 'Vorschau-Modus: Es werden keine DLP-Policies oder -Regeln erstellt oder geändert. Für die Ausführung -Execute verwenden.'
 }
 
-if ($Execute -or $UserPrincipalName) {
-    if ($UserPrincipalName) { Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorAction Stop }
-    else { Connect-IPPSSession -ErrorAction Stop }
-}
-
-$policyDefinitions = @(
-    [pscustomobject]@{
-        Name = $spoOdbPolicy
-        Parameters = @{ SharePointLocation = 'All'; OneDriveLocation = 'All' }
-    },
-    [pscustomobject]@{
-        Name = $exoPolicy
-        Parameters = @{ ExchangeLocation = 'All' }
-    },
-    [pscustomobject]@{
-        Name = $copilotPolicy
-        Parameters = @{
-            Locations = '[{"Workload":"Applications","Location":"470f2276-e011-4e9d-a6ec-20768be3a4b0","Inclusions":[{"Type":"Tenant","Identity":"All"}]}]'
-            EnforcementPlanes = @('CopilotExperiences')
-        }
-    },
-    [pscustomobject]@{
-        Name = $endpointPolicy
-        Parameters = @{ EndpointDlpLocation = 'All' }
-    },
-    [pscustomobject]@{
-        Name = $googleWorkspacePolicy
-        Optional = $true
-        Parameters = @{ ThirdPartyAppDlpLocation = 'All' }
-    }
-)
+$connected = Connect-PurviewSession -UserPrincipalName $UserPrincipalName -Required:$Execute -DisableWam:([bool]$config.DisableWam)
 
 # Vorhandene Policies und Regeln einmalig laden, statt pro Objekt Get-* -Identity
 # aufzurufen: ein "nicht gefunden" kann dort je nach Modulversion terminierend sein.
-$existingPolicyNames = @()
-$existingRuleNames = @()
-if ($Execute) {
+$existingPolicies = @{}
+$existingRules = @{}
+if ($connected) {
     try {
-        $existingPolicyNames = @(Get-DlpCompliancePolicy -ErrorAction Stop | ForEach-Object { [string]$_.Name })
-        $existingRules = @(Get-DlpComplianceRule -ErrorAction Stop)
+        foreach ($policy in @(Get-DlpCompliancePolicy -ErrorAction Stop)) { $existingPolicies[[string]$policy.Name] = $policy }
+        foreach ($rule in @(Get-DlpComplianceRule -ErrorAction Stop)) { $existingRules[[string]$rule.Name] = $rule }
     } catch {
-        Write-Log -Level ERROR -Message "Vorhandene DLP-Policies/-Regeln konnten nicht gelesen werden: $($_.Exception.Message)"
+        Write-PurviewLog -Level ERROR "Vorhandene DLP-Policies/-Regeln konnten nicht gelesen werden: $($_.Exception.Message)"
         throw
     }
-    $existingRuleNames = @($existingRules | ForEach-Object { [string]$_.Name })
 
-    # Bestehende Regeln werden nur uebersprungen, nicht aktualisiert. Korrekturen an
-    # bereits ausgerollten Regeln muessen daher manuell nachgezogen werden.
-    $protonRuleName = $NamePrefix + 'Recipient domain is proton mail - needs approval'
-    $protonRule = @($existingRules | Where-Object { [string]$_.Name -eq $protonRuleName })
-    if ($protonRule.Count -gt 0 -and $protonRule[0].PSObject.Properties['StopPolicyProcessing'] -and $protonRule[0].StopPolicyProcessing) {
-        Write-Log -Level WARN -Message "Bestehende Proton-Regel hat noch StopPolicyProcessing=True und hebelt die nachfolgenden EXO-Regeln aus. Korrektur: Set-DlpComplianceRule -Identity '$protonRuleName' -StopPolicyProcessing `$false"
-    }
     $oldRuleName = $NamePrefix + 'Disallow sharing of general internal or unlabeled content'
-    if ($existingRuleNames -contains $oldRuleName) {
-        Write-Log -Level WARN -Message "Alte Regel '$oldRuleName' existiert noch. Sie wurde in 'Block sharing of confidential internal content outside org' umbenannt; die alte Regel entfernen, sonst greift die Blockierung doppelt."
+    if ($existingRules.ContainsKey($oldRuleName)) {
+        Write-PurviewLog -Level WARN "Alte Regel '$oldRuleName' existiert noch. Sie wurde in '$($NamePrefix)Block sharing of confidential internal content outside org' umbenannt; die alte Regel entfernen, sonst greift die Blockierung doppelt."
     }
 }
+#endregion Connection
 
-foreach ($policyDefinition in $policyDefinitions) {
-    if ($policyDefinition.PSObject.Properties['Optional'] -and $policyDefinition.Optional -and -not $IncludeGoogleWorkspace) {
-        Write-Log -Level WARN -Message ("Optionale DLP-Policy '{0}' wird übersprungen. Für die Erstellung -IncludeGoogleWorkspace angeben." -f $policyDefinition.Name)
+#region Policies
+foreach ($definition in $policyDefinitions) {
+    if ($definition.Optional -and -not $IncludeGoogleWorkspace) {
+        Write-PurviewLog "Optionale DLP-Policy '$($definition.Name)' wird übersprungen (-IncludeGoogleWorkspace)."
+        continue
+    }
+
+    if ($existingPolicies.ContainsKey($definition.Name)) {
+        $existingMode = [string]$existingPolicies[$definition.Name].Mode
+        Write-PurviewLog "DLP-Policy '$($definition.Name)' existiert bereits (Modus: $existingMode)."
         continue
     }
 
     if (-not $Execute) {
-        Write-Log -Level WARN -Message ("Vorschau: DLP-Policy '{0}' wuerde im Modus '{1}' erstellt werden." -f $policyDefinition.Name, $PolicyMode)
+        Write-PurviewLog -Level WARN ("Vorschau: DLP-Policy '{0}' würde im Modus '{1}' erstellt werden." -f $definition.Name, $PolicyMode)
         continue
     }
 
     try {
-        if ($existingPolicyNames -contains $policyDefinition.Name) {
-            Write-Log -Level WARN -Message "DLP-Policy '$($policyDefinition.Name)' existiert bereits."
-            continue
-        }
-
-        $policyParams = @{ Name = $policyDefinition.Name; Mode = $PolicyMode; ErrorAction = 'Stop' }
-        foreach ($parameter in $policyDefinition.Parameters.GetEnumerator()) {
-            $policyParams[$parameter.Key] = $parameter.Value
-        }
+        $policyParams = @{ Name = $definition.Name; Mode = $PolicyMode; ErrorAction = 'Stop' }
+        foreach ($parameter in $definition.Parameters.GetEnumerator()) { $policyParams[$parameter.Key] = $parameter.Value }
         New-DlpCompliancePolicy @policyParams | Out-Null
-        Write-Log -Level OK -Message "DLP-Policy '$($policyDefinition.Name)' im Modus '$PolicyMode' erstellt."
+        Write-PurviewLog -Level OK "DLP-Policy '$($definition.Name)' im Modus '$PolicyMode' erstellt."
     } catch {
-        Write-Log -Level ERROR -Message "DLP-Policy '$($policyDefinition.Name)': $($_.Exception.Message)"
+        Write-PurviewLog -Level ERROR "DLP-Policy '$($definition.Name)': $($_.Exception.Message)"
     }
 }
+#endregion Policies
 
+#region Rules
 foreach ($rule in $rules) {
-    if ($rule.PSObject.Properties['Optional'] -and $rule.Optional -and -not $IncludeGoogleWorkspace) {
-        Write-Log -Level WARN -Message ("Optionale DLP-Regel '{0}' wird übersprungen. Für die Erstellung -IncludeGoogleWorkspace angeben." -f $rule.Name)
-        continue
-    }
-
-    if (-not $Execute) {
-        Write-Log -Level WARN -Message ("Vorschau [{0}]: Regel '{1}' fuer Policy '{2}' wuerde erstellt werden." -f $rule.Workload, $rule.Name, $rule.Policy)
+    if ($rule.Optional -and -not $IncludeGoogleWorkspace) {
+        Write-PurviewLog "Optionale DLP-Regel '$($rule.Name)' wird übersprungen (-IncludeGoogleWorkspace)."
         continue
     }
 
     try {
-        if ($existingRuleNames -contains $rule.Name) {
-            Write-Log -Level WARN -Message "DLP-Regel '$($rule.Name)' existiert bereits."
+        if ($existingRules.ContainsKey($rule.Name)) {
+            $drift = @(Compare-PurviewDesiredState -Desired $rule.Parameters -Actual $existingRules[$rule.Name] -Property $comparedRuleProperties)
+            # Komplexe Aktionen nur auf "fehlt ganz" prüfen (z. B. Upload-Schutz der
+            # Endpoint-Regel, der in älteren Ständen noch nicht gesetzt war).
+            foreach ($actionName in @('EndpointDlpRestrictions', 'RestrictAccess')) {
+                if (-not $rule.Parameters.ContainsKey($actionName)) { continue }
+                $actualAction = $existingRules[$rule.Name].PSObject.Properties[$actionName]
+                if ($null -ne $actualAction -and @($actualAction.Value | Where-Object { $_ }).Count -eq 0) {
+                    $drift += [pscustomobject]@{ Property = $actionName; Desired = 'gesetzt'; Actual = '' }
+                }
+            }
+            if ($drift.Count -gt 0) {
+                Write-PurviewLog -Level WARN "DLP-Regel '$($rule.Name)' weicht ab: $(Format-PurviewDrift -Drift $drift)"
+            } elseif (-not $UpdateExisting) {
+                Write-PurviewLog "DLP-Regel '$($rule.Name)' existiert bereits und entspricht der Definition (verglichen: $($comparedRuleProperties -join ', '))."
+            }
+            if (-not $UpdateExisting) { continue }
+            if (-not $Execute) {
+                Write-PurviewLog -Level WARN "Vorschau: DLP-Regel '$($rule.Name)' würde auf die Definition gesetzt werden."
+                continue
+            }
+
+            # Die komplette Definition erneut setzen, damit auch nicht verglichene
+            # Eigenschaften (Bedingungen, Aktionen) übereinstimmen.
+            $setParams = @{ Identity = $rule.Name; ErrorAction = 'Stop' }
+            foreach ($parameter in $rule.Parameters.GetEnumerator()) { $setParams[$parameter.Key] = $parameter.Value }
+            Set-DlpComplianceRule @setParams | Out-Null
+            Write-PurviewLog -Level OK "DLP-Regel '$($rule.Name)' auf die Definition gesetzt."
             continue
         }
 
-        $ruleParams = @{ Name = $rule.Name; Policy = $rule.Policy }
+        if (-not $Execute) {
+            Write-PurviewLog -Level WARN ("Vorschau [{0}]: Regel '{1}' für Policy '{2}' würde erstellt werden." -f $rule.Workload, $rule.Name, $rule.Policy)
+            continue
+        }
+
+        $ruleParams = @{ Name = $rule.Name; Policy = $rule.Policy; ErrorAction = 'Stop' }
         foreach ($parameter in $rule.Parameters.GetEnumerator()) { $ruleParams[$parameter.Key] = $parameter.Value }
-        New-DlpComplianceRule @ruleParams -ErrorAction Stop | Out-Null
-        Write-Log -Level OK -Message "DLP-Regel '$($rule.Name)' fuer $($rule.Workload) erstellt."
+        New-DlpComplianceRule @ruleParams | Out-Null
+        Write-PurviewLog -Level OK "DLP-Regel '$($rule.Name)' für $($rule.Workload) erstellt."
     } catch {
-        Write-Log -Level ERROR -Message "DLP-Regel '$($rule.Name)': $($_.Exception.Message)"
+        Write-PurviewLog -Level ERROR "DLP-Regel '$($rule.Name)': $($_.Exception.Message)"
         if ($_.Exception.Message -match 'NoRmsTemplateFound|No RMSTemplate') {
-            Write-Log -Level ERROR -Message "RMS-Vorlage '$EncryptionTemplate' existiert nicht. Vorhandene Vorlagen in Exchange Online mit Get-RMSTemplate pruefen und per -EncryptionTemplate angeben."
+            Write-PurviewLog -Level ERROR "RMS-Vorlage '$EncryptionTemplate' existiert nicht. Vorhandene Vorlagen in Exchange Online mit Get-RMSTemplate prüfen und in config/tenant.psd1 (EncryptionTemplate) eintragen."
         }
     }
 }
+#endregion Rules
 
-Write-Log -Message 'Skript beendet.'
-#endregion Main
+Write-PurviewLog 'Skript beendet.'

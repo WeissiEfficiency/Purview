@@ -20,6 +20,10 @@ param(
 
     [switch]$Execute,
 
+    [switch]$UpdateExisting,
+
+    [string]$ConfigPath,
+
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-TestSensitivityLabel-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
 )
@@ -30,9 +34,11 @@ $ErrorActionPreference = 'Stop'
 $mainScript = Join-Path -Path $PSScriptRoot -ChildPath '../Main Setup/Create-SensitivityLabels.ps1'
 $parameters = @{
     Execute  = [bool]$Execute
+    UpdateExisting = [bool]$UpdateExisting
     LogPath  = $LogPath
     LabelPrefix = 'Test-'
 }
 if ($UserPrincipalName) { $parameters.UserPrincipalName = $UserPrincipalName }
+if ($ConfigPath) { $parameters.ConfigPath = $ConfigPath }
 
 & $mainScript @parameters
