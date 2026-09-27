@@ -207,7 +207,7 @@ Erwartete Verteilung der elf Regeln (zwölf mit `-IncludeGoogleWorkspace`):
 
 Vor der produktiven Erstellung prüfen:
 
-- RMS-Vorlage für die Regel `Encryption` (`EncryptionTemplate` in `config/tenant.psd1`, Standard `Encrypt`; der Name ist lokalisiert, in deutschsprachigen Sitzungen `Verschlüsseln`. Sprachunabhängig ist die GUID, die `Test-TenantReadiness.ps1` ausgibt)
+- RMS-Vorlage für die Regel `Encryption` (`EncryptionTemplate` in `config/tenant.psd1`, eingetragen ist die GUID der Vorlage `Encrypt`; der Name ist lokalisiert, in deutschsprachigen Sitzungen `Verschlüsseln`. Sprachunabhängig ist die GUID, die `Test-TenantReadiness.ps1` ausgibt)
 - Modus neuer DLP-Policies (Parameter `-PolicyMode`, Standard `TestWithNotifications`)
 - Incident-Report-Empfänger (`IncidentReportRecipient` in `config/tenant.psd1`)
 - Labelnamen im Tenant

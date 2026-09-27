@@ -8,10 +8,11 @@
     # Empfänger für DLP-Incident-Reports und Admin-Benachrichtigungen.
     IncidentReportRecipient = 'admin@M365DS559840.onmicrosoft.com'
 
-    # RMS-Vorlage der EXO-Regel "Encryption". 'Encrypt' ist die integrierte
-    # Vorlage von Purview Message Encryption; verfügbare Vorlagen zeigt
-    # Get-RMSTemplate in Exchange Online.
-    EncryptionTemplate      = 'Encrypt'
+    # RMS-Vorlage der EXO-Regel "Encryption": integrierte Vorlage "Encrypt" von
+    # Purview Message Encryption. Der Name ist lokalisiert (deutsch "Verschlüsseln"),
+    # deshalb die sprachunabhängige GUID. Name oder GUID sind möglich; verfügbare
+    # Vorlagen zeigt Presets/Test-TenantReadiness.ps1 bzw. Get-RMSTemplate.
+    EncryptionTemplate      = 'c026002d-cda6-401e-bfad-28de214d0fba'
 
     # Empfängerdomains der Proton-Mail-Regel.
     ProtonDomains           = @('pm.me', 'proton.me', 'protonmail.com', 'protonmail.ch')

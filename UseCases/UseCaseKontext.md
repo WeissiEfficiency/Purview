@@ -114,7 +114,7 @@ Voraussetzungen: Geräte sind für Endpoint DLP onboardet; die eingeschränkten 
 
 1. Priorität der Publishing Policies für Mitglieder mehrerer Teams festlegen (Abschnitt 4).
 2. Google-Workspace-Regel fachlich neu aufsetzen oder entfernen.
-3. RMS-Vorlage `Encrypt`, Incident-Report-Empfänger und Gruppenmitglieder im Tenant bestätigen (`UseCases/Testkonten.md`).
+3. ~~RMS-Vorlage `Encrypt`, Incident-Report-Empfänger und Gruppenmitglieder im Tenant bestätigen~~ – erledigt am 2026-09-27 mit `Presets/Test-TenantReadiness.ps1` (Vorlage als GUID in `config/tenant.psd1`). Offen: SharePoint-Label-Integration und Endpoint-Onboarding.
 4. DLP-Policies nach Auswertung der Simulation auf `Enable` stellen (Vier-Augen-Prinzip, siehe `Roadmap/Governance-LeastPrivilege-VierAugen.md`).
 
 ## 7. Getroffene Entscheidungen
