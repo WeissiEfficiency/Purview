@@ -16,6 +16,9 @@ Hinweise
 - Alle zehn Regeln laufen im Modus Enforce.
 - Die Labelnamen werden so dokumentiert, wie sie im Export vorkommen. Die Bezeichnungen mit "Test-" sind daher Bestandteil der aktuellen Konfiguration.
 - "Extern" beziehungsweise "NotInOrganization" bezeichnet Zugriffe oder Empfaenger ausserhalb der eigenen Organisation.
+- Seit der Umstellung von Test/Create-TestDlpComplianceRules.ps1 auf Main Setup/Create-DlpComplianceRule.ps1
+  tragen neu erstellte Test-Policies und -Regeln das Praefix "Test " (z. B. "Test Encryption"), weil
+  DLP-Regelnamen tenantweit eindeutig sein muessen. Neue Policies starten im Modus TestWithNotifications.
 
 1. Policies
 ===========

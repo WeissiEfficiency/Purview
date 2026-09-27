@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Erstellt produktive DLP-Regeln für Microsoft Purview.
 
@@ -13,6 +13,15 @@
 .PARAMETER Execute
     Erstellt die Regeln tatsächlich. Ohne diesen Schalter bleibt das Skript im
     Vorschau-Modus.
+
+.PARAMETER LabelPrefix
+    Präfix vor allen Labelnamen in den Bedingungen, z. B. 'Test-' für die
+    Testlabels. Wird von Test/Create-TestDlpComplianceRules.ps1 gesetzt.
+
+.PARAMETER NamePrefix
+    Präfix vor allen Policy- und Regelnamen, z. B. 'Test '. DLP-Regelnamen
+    müssen tenantweit eindeutig sein; ohne Präfix würden Testregeln mit den
+    Produktionsregeln kollidieren.
 
 .PARAMETER IncludeGoogleWorkspace
     Erstellt zusätzlich die optionale Google-Workspace-Policy und -Regel. Die
@@ -69,11 +78,14 @@
 
 #region Parameters
 #requires -Version 5.1
+[Diagnostics.CodeAnalysis.SuppressMessageAttribute('PSReviewUnusedParameter', 'LabelPrefix', Justification = 'Wird als Standardwert von New-LabelCondition verwendet; funktioniert auch beim Dot-Sourcing durch Start-PurviewSetup.ps1.')]
 [CmdletBinding()]
 param(
     [string]$UserPrincipalName,
     [switch]$Execute,
     [switch]$IncludeGoogleWorkspace,
+    [string]$LabelPrefix = '',
+    [string]$NamePrefix = '',
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-DlpComplianceRules-Production-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss'))),
     [ValidateNotNullOrEmpty()]
@@ -108,7 +120,8 @@ function Write-Log {
 function New-LabelCondition {
     param(
         [Parameter(Mandatory = $true)][string[]]$Labels,
-        [ValidateSet('And', 'Or')][string]$Operator = 'And'
+        [ValidateSet('And', 'Or')][string]$Operator = 'And',
+        [string]$Prefix = $LabelPrefix
     )
 
     return @{
@@ -120,7 +133,7 @@ function New-LabelCondition {
                         Name     = 'Default'
                         Operator = 'Or'
                         Labels   = @($Labels | ForEach-Object {
-                                @{ Name = $_; Type = 'Sensitivity' }
+                                @{ Name = $Prefix + $_; Type = 'Sensitivity' }
                             })
                     }
                 )
@@ -144,11 +157,11 @@ function New-AdvancedRule {
 #endregion Functions
 
 #region Main
-$spoOdbPolicy = 'SPO ODB - Restrict Sharing Outside'
-$exoPolicy = 'EXO - All user - Restrict sharing outside'
-$copilotPolicy = 'AI -All users - Block processing'
-$endpointPolicy = 'Endpoint - All users - Restrict upload to AI Apps'
-$googleWorkspacePolicy = 'GoogleDrive - All users - Block usage'
+$spoOdbPolicy = $NamePrefix + 'SPO ODB - Restrict Sharing Outside'
+$exoPolicy = $NamePrefix + 'EXO - All user - Restrict sharing outside'
+$copilotPolicy = $NamePrefix + 'AI -All users - Block processing'
+$endpointPolicy = $NamePrefix + 'Endpoint - All users - Restrict upload to AI Apps'
+$googleWorkspacePolicy = $NamePrefix + 'GoogleDrive - All users - Block usage'
 
 # BlockAccess wird fuer den Applications-Workload (Copilot) abgelehnt
 # (ErrorUnsupportedActionForApplicationsWorkloadException). Copilot-Regeln
@@ -218,9 +231,10 @@ $rules = @(
         BlockAccess = $true; EnforcePortalAccess = $true; NotifyUser = 'LastModifier'; NotifyPolicyTipDisplayOption = 'Tip'
     } }
 )
+foreach ($rule in $rules) { $rule.Name = $NamePrefix + $rule.Name }
 
 Write-Log -Message "Logpfad: $LogPath"
-Write-Log -Message ("Produktionsregeln geladen: {0} (SPO/ODB: {1}, EXO: {2}, Copilot: {3}, Endpoint: {4}, Google Workspace: {5})" -f $rules.Count, @($rules | Where-Object Workload -eq 'SPO/ODB').Count, @($rules | Where-Object Workload -eq 'EXO').Count, @($rules | Where-Object Workload -eq 'Copilot').Count, @($rules | Where-Object Workload -eq 'Endpoint').Count, @($rules | Where-Object Workload -eq 'Google Workspace').Count)
+Write-Log -Message ("Regeln geladen: {0} (SPO/ODB: {1}, EXO: {2}, Copilot: {3}, Endpoint: {4}, Google Workspace: {5})" -f $rules.Count, @($rules | Where-Object Workload -eq 'SPO/ODB').Count, @($rules | Where-Object Workload -eq 'EXO').Count, @($rules | Where-Object Workload -eq 'Copilot').Count, @($rules | Where-Object Workload -eq 'Endpoint').Count, @($rules | Where-Object Workload -eq 'Google Workspace').Count)
 
 if (-not $Execute) {
     Write-Log -Level WARN -Message 'Vorschau-Modus: Es werden keine DLP-Regeln erstellt. Fuer die Erstellung -Execute verwenden.'
@@ -274,12 +288,14 @@ if ($Execute) {
 
     # Bestehende Regeln werden nur uebersprungen, nicht aktualisiert. Korrekturen an
     # bereits ausgerollten Regeln muessen daher manuell nachgezogen werden.
-    $protonRule = @($existingRules | Where-Object { [string]$_.Name -eq 'Recipient domain is proton mail - needs approval' })
+    $protonRuleName = $NamePrefix + 'Recipient domain is proton mail - needs approval'
+    $protonRule = @($existingRules | Where-Object { [string]$_.Name -eq $protonRuleName })
     if ($protonRule.Count -gt 0 -and $protonRule[0].PSObject.Properties['StopPolicyProcessing'] -and $protonRule[0].StopPolicyProcessing) {
-        Write-Log -Level WARN -Message "Bestehende Proton-Regel hat noch StopPolicyProcessing=True und hebelt die nachfolgenden EXO-Regeln aus. Korrektur: Set-DlpComplianceRule -Identity 'Recipient domain is proton mail - needs approval' -StopPolicyProcessing `$false"
+        Write-Log -Level WARN -Message "Bestehende Proton-Regel hat noch StopPolicyProcessing=True und hebelt die nachfolgenden EXO-Regeln aus. Korrektur: Set-DlpComplianceRule -Identity '$protonRuleName' -StopPolicyProcessing `$false"
     }
-    if ($existingRuleNames -contains 'Disallow sharing of general internal or unlabeled content') {
-        Write-Log -Level WARN -Message "Alte Regel 'Disallow sharing of general internal or unlabeled content' existiert noch. Sie wurde in 'Block sharing of confidential internal content outside org' umbenannt; die alte Regel entfernen, sonst greift die Blockierung doppelt."
+    $oldRuleName = $NamePrefix + 'Disallow sharing of general internal or unlabeled content'
+    if ($existingRuleNames -contains $oldRuleName) {
+        Write-Log -Level WARN -Message "Alte Regel '$oldRuleName' existiert noch. Sie wurde in 'Block sharing of confidential internal content outside org' umbenannt; die alte Regel entfernen, sonst greift die Blockierung doppelt."
     }
 }
 

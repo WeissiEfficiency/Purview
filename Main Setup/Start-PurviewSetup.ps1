@@ -1,4 +1,4 @@
-#requires -Version 5.1
+﻿#requires -Version 5.1
 <#
 .SYNOPSIS
     Erstellt die Purview-Konfiguration in fester Reihenfolge.
@@ -86,7 +86,6 @@ function Invoke-DotSourcedStep {
         [Parameter(Mandatory = $true)][hashtable]$Parameters
     )
 
-    $stepLogRoot = Join-Path -Path $LogRoot -ChildPath $StepName
     Write-OrchestrationLog -Message "Starte Schritt: $StepName"
 
     try {

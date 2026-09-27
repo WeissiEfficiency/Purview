@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Erstellt produktive Microsoft-Purview-Publishing-Policies.
 
@@ -24,6 +24,13 @@
     Überspringt die Gruppenzuordnung. Nur für Diagnosezwecke: Die Team-Policies
     gelten dann für alle Benutzer.
 
+.PARAMETER LabelPrefix
+    Präfix vor allen Labelnamen, z. B. 'Test-' für die Testlabels.
+
+.PARAMETER PolicyPrefix
+    Präfix vor allen Policy-Namen, z. B. 'Test '. Wird auch an
+    Set-PublishingPolicyGroups.ps1 weitergegeben.
+
 .PARAMETER LogPath
     Zielordner für das Ausführungslog.
 
@@ -48,6 +55,10 @@ param(
     [switch]$Execute,
 
     [switch]$SkipGroupAssignment,
+
+    [string]$LabelPrefix = '',
+
+    [string]$PolicyPrefix = '',
 
     [ValidateNotNullOrEmpty()]
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-PublishingPolicies-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
@@ -81,12 +92,9 @@ function Resolve-LabelId {
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Labels
     )
 
-    $label = $Labels | Where-Object {
-        [string]$_.Name -eq $LabelName -or
-        [string]$_.DisplayName -eq $LabelName -or
-        [string]$_.ImmutableId -eq $LabelName -or
-        [string]$_.Guid -eq $LabelName
-    } | Select-Object -First 1
+    # Nur ueber den eindeutigen Namen aufloesen: Anzeigenamen wie 'Intern' kommen
+    # in mehreren Labelgruppen vor.
+    $label = $Labels | Where-Object { [string]$_.Name -eq $LabelName } | Select-Object -First 1
     if ($null -eq $label) {
         throw "Sensitivity label '$LabelName' wurde im Tenant nicht gefunden."
     }
@@ -132,6 +140,13 @@ $policyTemplates = @(
         Settings    = @{ mandatory = 'true'; outlookdefaultlabel = 'General-Intern'; defaultlabelid = 'General-Intern'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = 'https://learn.microsoft.com/de-de/purview/sensitivity-labels' }
     }
 )
+foreach ($policy in $policyTemplates) {
+    $policy.Name = $PolicyPrefix + $policy.Name
+    $policy.Labels = @($policy.Labels | ForEach-Object { $LabelPrefix + $_ })
+    foreach ($key in @('defaultlabelid', 'outlookdefaultlabel')) {
+        if ($policy.Settings.ContainsKey($key)) { $policy.Settings[$key] = $LabelPrefix + $policy.Settings[$key] }
+    }
+}
 #endregion PolicyDefinitions
 
 #region Connection
@@ -178,7 +193,7 @@ foreach ($policy in $policyTemplates) {
             continue
         }
 
-        $settings = [hashtable]::new($policy.Settings)
+        $settings = $policy.Settings.Clone()
         foreach ($key in @('defaultlabelid', 'outlookdefaultlabel')) {
             if ($settings.ContainsKey($key)) {
                 $settings[$key] = Resolve-LabelId -LabelName ([string]$settings[$key]) -Labels $tenantLabels
@@ -211,7 +226,7 @@ if ($SkipGroupAssignment) {
         Write-Log -Level ERROR -Message "Gruppenskript nicht gefunden: $groupScript"
     } else {
         Write-Log -Message 'Starte Gruppenzuordnung der Team-Policies.'
-        & $groupScript -Execute:([bool]$Execute) -LogPath $groupLogPath
+        & $groupScript -Execute:([bool]$Execute) -PolicyNamePrefix $PolicyPrefix -LogPath $groupLogPath
 
         $groupLog = Join-Path -Path $groupLogPath -ChildPath 'Set-PublishingPolicyGroups.log'
         $groupErrors = @(Select-String -LiteralPath $groupLog -Pattern '[ERROR]' -SimpleMatch -ErrorAction SilentlyContinue)

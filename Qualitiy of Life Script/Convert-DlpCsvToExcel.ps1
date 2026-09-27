@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Konvertiert einen Microsoft-Purview-DLP-CSV-Export in eine Excel-Datei.
 

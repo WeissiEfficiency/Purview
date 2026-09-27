@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Assigns the target groups to existing Purview publishing policies.
 

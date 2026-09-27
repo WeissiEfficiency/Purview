@@ -1,11 +1,10 @@
-<#
+﻿<#
 .SYNOPSIS
     Exportiert DLP-Aktivitäten aus Microsoft Purview als CSV,
     ohne Benutzer- und Dateiangaben.
 
-.VORAUSSETZUNG
-    Install-Module ExchangeOnlineManagement -Scope CurrentUser
-    Test123
+.NOTES
+    Voraussetzung: Install-Module ExchangeOnlineManagement -Scope CurrentUser
 #>
 
 [CmdletBinding()]

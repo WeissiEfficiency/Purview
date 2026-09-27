@@ -1,3 +1,15 @@
+﻿#requires -Version 5.1
+<#
+.SYNOPSIS
+    Exportiert alle Sensitivity-Label-Publishing-Policies als CSV.
+
+.DESCRIPTION
+    Liest Get-LabelPolicy aus, wertet die AdvancedSettings aus (inkl. Pflicht-
+    und Standardlabel) und uebersetzt Label-GUIDs in Labelnamen.
+
+.EXAMPLE
+    .\Get-PublishingPolicies.ps1 -UserPrincipalName admin@contoso.com
+#>
 [CmdletBinding()]
 param(
     [string]$UserPrincipalName,
@@ -9,6 +21,9 @@ param(
     [string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Get-PublishingPolicies-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
 )
 
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
 New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
 $LogFile = Join-Path $LogPath 'Get-PublishingPolicies.log'
 
@@ -18,24 +33,10 @@ function Write-Log {
         [ValidateSet('INFO', 'WARN', 'ERROR', 'OK')][string]$Level = 'INFO'
     )
 
-    $timestamp = Get-Date -Format 'yyyy-MM-dd HH:mm:ss'
-    $line = '[{0}] [{1}] {2}' -f $timestamp, $Level, $Message
+    $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
     Write-Host $line
     Add-Content -LiteralPath $LogFile -Value $line -Encoding UTF8
 }
-
-Write-Log -Message "Logpfad: $LogPath"
-
-# 1. Connect to Microsoft Purview Security & Compliance PowerShell
-if ($UserPrincipalName) {
-    Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorAction Stop
-} else {
-    Connect-IPPSSession -ErrorAction Stop
-}
-
-Write-Log -Message '=== FETCHING SENSITIVITY LABEL PUBLISHING POLICIES ==='
-# Retrieve all sensitivity label publishing policies
-$SensitivityPolicies = @(Get-LabelPolicy -ErrorAction Stop)
 
 function Get-OptionalPropertyValue {
     param(
@@ -58,42 +59,43 @@ function Convert-ToCsvValue {
         return ''
     }
 
-    if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) {
-        return (($Value | ForEach-Object {
-            $displayProperty = $_.PSObject.Properties['DisplayName']
-            $nameProperty = $_.PSObject.Properties['Name']
-            if ($null -ne $displayProperty -and $displayProperty.Value) { [string]$displayProperty.Value }
-            elseif ($null -ne $nameProperty -and $nameProperty.Value) { [string]$nameProperty.Value }
-            else { [string]$_ }
-        }) -join '; ')
-    }
-
-    $displayProperty = $Value.PSObject.Properties['DisplayName']
-    $nameProperty = $Value.PSObject.Properties['Name']
-    if ($null -ne $displayProperty -and $displayProperty.Value) { return [string]$displayProperty.Value }
-    if ($null -ne $nameProperty -and $nameProperty.Value) { return [string]$nameProperty.Value }
-
-    return [string]$Value
+    $items = if ($Value -is [System.Collections.IEnumerable] -and $Value -isnot [string]) { @($Value) } else { @($Value) }
+    return (@($items | ForEach-Object {
+        $displayProperty = $_.PSObject.Properties['DisplayName']
+        $nameProperty = $_.PSObject.Properties['Name']
+        if ($null -ne $displayProperty -and $displayProperty.Value) { [string]$displayProperty.Value }
+        elseif ($null -ne $nameProperty -and $nameProperty.Value) { [string]$nameProperty.Value }
+        else { [string]$_ }
+    }) -join '; ')
 }
 
-function Get-PolicySettings {
+function Get-PolicySetting {
     param([Parameter(Mandatory = $true)]$Policy)
 
-    $settingsValue = Get-OptionalPropertyValue -InputObject $Policy -PropertyName 'Settings'
+    # Get-LabelPolicy liefert Settings je nach Modulversion als Eintraege der Form
+    # "[key, value]" oder als XML (<setting key=".." value=".." />). Beides auswerten.
     $settings = [ordered]@{}
-    if ([string]::IsNullOrWhiteSpace([string]$settingsValue)) {
-        return $settings
-    }
+    foreach ($entry in @(Get-OptionalPropertyValue -InputObject $Policy -PropertyName 'Settings')) {
+        $text = [string]$entry
+        if ([string]::IsNullOrWhiteSpace($text)) { continue }
 
-    try {
-        $settingsXml = [xml](($settingsValue | ForEach-Object { [string]$_ }) -join '')
-        foreach ($setting in @($settingsXml.SelectNodes('//setting'))) {
-            if ($setting.key) {
-                $settings[[string]$setting.key] = [string]$setting.value
-            }
+        if ($text -match '^\s*\[(?<key>[^,\]]+),\s*(?<value>.*)\]\s*$') {
+            $settings[$Matches['key'].Trim().ToLowerInvariant()] = $Matches['value'].Trim()
+            continue
         }
-    } catch {
-        $settings['_parseError'] = $_.Exception.Message
+
+        if ($text.TrimStart().StartsWith('<')) {
+            try {
+                foreach ($setting in @(([xml]$text).SelectNodes('//setting'))) {
+                    if ($setting.key) { $settings[([string]$setting.key).ToLowerInvariant()] = [string]$setting.value }
+                }
+            } catch {
+                $settings['_parseerror'] = $_.Exception.Message
+            }
+            continue
+        }
+
+        $settings['_unparsed'] = (@($settings['_unparsed'], $text) | Where-Object { $_ }) -join ' | '
     }
 
     return $settings
@@ -111,43 +113,67 @@ function Get-ConfiguredLocationText {
         }
     }
 
-    return ($locations -join ' | ')
+    return (@($locations) -join ' | ')
 }
 
-$ExportRows = foreach ($policy in $SensitivityPolicies) {
-    $defaultLabel = Get-OptionalPropertyValue -InputObject $policy -PropertyName 'DefaultLabel'
-    $mandatory = Get-OptionalPropertyValue -InputObject $policy -PropertyName 'Mandatory'
-    $policySettings = Get-PolicySettings -Policy $policy
-    $defaultLabelId = if ($policySettings.Contains('defaultlabelid')) { $policySettings['defaultlabelid'] } else { '' }
-    $mandatorySettings = @($policySettings.GetEnumerator() | Where-Object { $_.Key -match 'mandatory' } | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join '; '
+$connected = $false
+try {
+    Write-Log -Message "Logpfad: $LogPath"
 
-    [PSCustomObject]@{
-        PolicyName               = $policy.Name
-        LabelsPublished          = Convert-ToCsvValue -Value $policy.Labels
-        PublishedTo              = Get-ConfiguredLocationText -Policy $policy
-        TargetGroupsUsers        = Convert-ToCsvValue -Value $policy.ExchangeLocation
-        Workloads                = Convert-ToCsvValue -Value $policy.Workload
-        Mandatory                = Convert-ToCsvValue -Value $mandatory
-        MandatoryConfigured      = ($null -ne $mandatory)
-        DefaultLabel             = Convert-ToCsvValue -Value $defaultLabel
-        DefaultLabelConfigured   = ($null -ne $defaultLabel)
-        DefaultLabelId           = $defaultLabelId
-        MandatorySettings        = $mandatorySettings
-        PolicySettings           = ($policySettings.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join '; '
-        PolicyConfigurationJson  = ($policy | ConvertTo-Json -Compress -Depth 10)
+    if ($UserPrincipalName) {
+        Connect-IPPSSession -UserPrincipalName $UserPrincipalName -ErrorAction Stop
+    } else {
+        Connect-IPPSSession -ErrorAction Stop
+    }
+    $connected = $true
+
+    Write-Log -Message 'Publishing-Policies und Labels werden gelesen.'
+    $sensitivityPolicies = @(Get-LabelPolicy -ErrorAction Stop)
+
+    # Label-GUIDs aus defaultlabelid/outlookdefaultlabel in lesbare Namen uebersetzen.
+    $labelNamesById = @{}
+    foreach ($label in @(Get-Label -ErrorAction Stop)) {
+        foreach ($idProperty in @('ImmutableId', 'Guid')) {
+            $id = [string](Get-OptionalPropertyValue -InputObject $label -PropertyName $idProperty)
+            if ($id) { $labelNamesById[$id] = [string]$label.Name }
+        }
+    }
+
+    $exportRows = foreach ($policy in $sensitivityPolicies) {
+        $policySettings = Get-PolicySetting -Policy $policy
+        $defaultLabelId = if ($policySettings.Contains('defaultlabelid')) { [string]$policySettings['defaultlabelid'] } else { '' }
+        $outlookDefaultId = if ($policySettings.Contains('outlookdefaultlabel')) { [string]$policySettings['outlookdefaultlabel'] } else { '' }
+
+        [PSCustomObject]@{
+            PolicyName              = [string]$policy.Name
+            LabelsPublished         = Convert-ToCsvValue -Value (Get-OptionalPropertyValue -InputObject $policy -PropertyName 'Labels')
+            PublishedTo             = Get-ConfiguredLocationText -Policy $policy
+            Mandatory               = if ($policySettings.Contains('mandatory')) { [string]$policySettings['mandatory'] } else { '' }
+            DefaultLabelId          = $defaultLabelId
+            DefaultLabel            = if ($labelNamesById.ContainsKey($defaultLabelId)) { $labelNamesById[$defaultLabelId] } else { '' }
+            OutlookDefaultLabel     = if ($labelNamesById.ContainsKey($outlookDefaultId)) { $labelNamesById[$outlookDefaultId] } else { $outlookDefaultId }
+            PolicySettings          = (@($policySettings.GetEnumerator() | ForEach-Object { '{0}={1}' -f $_.Key, $_.Value }) -join '; ')
+            PolicyConfigurationJson = ($policy | ConvertTo-Json -Compress -Depth 10)
+        }
+    }
+
+    foreach ($row in @($exportRows)) {
+        $row | Format-List
+    }
+
+    $csvDirectory = Split-Path -Parent $CsvPath
+    if ($csvDirectory) {
+        New-Item -ItemType Directory -Path $csvDirectory -Force | Out-Null
+    }
+    @($exportRows) | Export-Csv -LiteralPath $CsvPath -NoTypeInformation -Encoding UTF8
+    Write-Log -Level OK -Message ("{0} Publishing-Policies exportiert nach: {1}" -f @($exportRows).Count, $CsvPath)
+}
+catch {
+    Write-Log -Level ERROR -Message $_.Exception.Message
+    throw
+}
+finally {
+    if ($connected) {
+        Disconnect-ExchangeOnline -Confirm:$false -ErrorAction SilentlyContinue
     }
 }
-
-foreach ($row in $ExportRows) {
-    $row | Format-List
-}
-
-$CsvDirectory = Split-Path -Parent $CsvPath
-if ($CsvDirectory) {
-    New-Item -ItemType Directory -Path $CsvDirectory -Force | Out-Null
-}
-$ExportRows | Export-Csv -LiteralPath $CsvPath -NoTypeInformation -Encoding UTF8
-Write-Log -Level OK -Message "CSV exportiert nach: $CsvPath"
-
-# Always disconnect your session when done
-Disconnect-ExchangeOnline -Confirm:$false

@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Ruft DLP-Aktivitäten ab und konvertiert die CSV-Ausgabe in eine XLSX-Datei.
 

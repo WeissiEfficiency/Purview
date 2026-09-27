@@ -8,7 +8,7 @@ Automatisierungsskripte, Use-Case-Dokumentation und Demo-Material für ein produ
 |---|---|
 | `Main Setup/` | Produktionsskripte zum Erstellen von Sensitivity Labels, Publishing Policies und DLP-Regeln sowie ein Orchestrierungsskript |
 | `Presets/` | Wiederverwendbare Automatisierungen: Admin zu Verteilergruppen hinzufügen, Tenant-Identitäten inventarisieren, Purview-Konfiguration vollständig zurücksetzen |
-| `Test/` | Testvarianten aller Setup-Skripte mit `Test-`-Präfix sowie Export-/Abfrage-Skripte |
+| `Test/` | Testvarianten der Setup-Skripte (rufen die Skripte in `Main Setup/` mit Präfix `Test-` für Labels und `Test ` für Policies/Regeln auf) sowie Export-/Abfrage-Skripte |
 | `UseCases/` | Ausführliche Anleitung sowie Use-Case-Matrizen zu Label-Freigaben/RMS und M365-DLP-Demoszenarien |
 | `Demo Dokumente/` | Testdokumente mit unterschiedlichen Vertraulichkeitsstufen, ein Demo-Runbook und ein Testprotokoll |
 | `Roadmap/` | Planungsdokumente: Compliance-Manager-Priorisierung, ISO/IEC 27001:2022-Gap-Analyse und Architekturkonzept (Baseline, Governance, PIM) |
@@ -54,6 +54,11 @@ Diese Dokumente sind reine Planungsartefakte; keine der dort beschriebenen Maßn
 - Copilot-Regeln verwenden `RestrictAccess` (`ExcludeContentProcessing`), weil `BlockAccess` für den Copilot-Workload abgelehnt wird. Die Google-Workspace-Regel ist optional (`-IncludeGoogleWorkspace`) und wird vom Tenant derzeit abgelehnt.
 
 > Früher an dieser Stelle gelistete Punkte (Finance/Legal als `ModernGroupLocation`, widersprüchliche Endpoint-Bedingung) wurden behoben — siehe Commit-Historie von `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Create-DlpComplianceRule.ps1`.
+
+## Qualitätssicherung
+
+- `.github/workflows/powershell-lint.yml` prüft bei jedem Push Syntax, UTF-8-BOM und PSScriptAnalyzer (Einstellungen in `PSScriptAnalyzerSettings.psd1`).
+- PowerShell-Dateien müssen als **UTF-8 mit BOM** gespeichert werden (siehe `.editorconfig`). Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI; Umlaute in Label-Tooltips würden sonst verfälscht im Tenant landen.
 
 ## Sicherheitshinweis
 

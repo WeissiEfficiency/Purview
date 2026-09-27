@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
 	Erstellt die produktive Sensitivity-Label-Hierarchie in Microsoft Purview.
 
@@ -14,6 +14,10 @@
 .PARAMETER Execute
 	Erstellt die Labels tatsächlich. Ohne diesen Schalter bleibt das Skript im
 	Vorschau-Modus und stellt keine Verbindung zum Tenant her.
+
+.PARAMETER LabelPrefix
+	Präfix vor Name und Anzeigename aller Labels, z. B. 'Test-' für die
+	Testlabels. Wird von Test/Create-TestSensitivityLabel.ps1 gesetzt.
 
 .PARAMETER LogPath
 	Zielordner für das Ausführungslog.
@@ -42,6 +46,8 @@ param (
 	[string]$UserPrincipalName,
 
 	[switch]$Execute,
+
+	[string]$LabelPrefix = '',
 
 	[ValidateNotNullOrEmpty()]
 	[string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-SensitivityLabels-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
@@ -119,6 +125,8 @@ $publicLabel = @{
 	EncryptionProtectionType           = 'RemoveProtection'
 	Confirm                            = $false
 }
+$publicLabel.Name = $LabelPrefix + $publicLabel.Name
+$publicLabel.DisplayName = $LabelPrefix + $publicLabel.DisplayName
 
 if (-not $Execute) {
 	Write-Log -Level WARN -Message "Vorschau: Label '$($publicLabel.Name)' würde erstellt werden."
@@ -141,6 +149,10 @@ $groupLabels = @(
 	[pscustomobject]@{ Name = 'Confidential';          DisplayName = 'Confidential';          Tooltip = 'Für vertrauliche Informationen und Angelegenheiten.' },
 	[pscustomobject]@{ Name = 'Strictly-Confidential'; DisplayName = 'Strictly Confidential'; Tooltip = 'Für streng vertrauliche Informationen und Angelegenheiten.' }
 )
+foreach ($g in $groupLabels) {
+	$g.Name = $LabelPrefix + $g.Name
+	$g.DisplayName = $LabelPrefix + $g.DisplayName
+}
 
 foreach ($g in $groupLabels) {
 	if (-not $Execute) {
@@ -183,6 +195,11 @@ $subLabels = @(
 	[pscustomobject]@{ Name = 'Strictly-Confidential-Intern';       DisplayName = 'Intern';      Tooltip = 'Streng vertrauliche interne Belange.';                        ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Intern';       FooterColor = '#FF0000'; LabelColor = '#FF0000'; ProtectionType = 'Template'; RightsDefinitions = "$LeadershipIdentity`:VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER"; OfflineAccessDays = 0 },
 	[pscustomobject]@{ Name = 'Strictly-Confidential-Personalized'; DisplayName = 'Personalized'; Tooltip = 'Streng vertrauliche personalisierte Belange.';                ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Personalized'; FooterColor = '#FF0000'; LabelColor = '#FF0000'; ProtectionType = 'UserDefined' }
 )
+foreach ($l in $subLabels) {
+	$l.Name = $LabelPrefix + $l.Name
+	$l.DisplayName = $LabelPrefix + $l.DisplayName
+	$l.ParentName = $LabelPrefix + $l.ParentName
+}
 
 foreach ($l in $subLabels) {
 	if (-not $Execute) {

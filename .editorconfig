@@ -1,0 +1,15 @@
+root = true
+
+[*]
+end_of_line = lf
+insert_final_newline = true
+
+# Windows PowerShell 5.1 liest Skripte ohne BOM als ANSI (Umlaute in Label-
+# Tooltips wuerden verfaelscht). Daher PowerShell-Dateien immer mit BOM speichern.
+[*.{ps1,psm1,psd1}]
+charset = utf-8-bom
+indent_style = space
+indent_size = 4
+
+[*.md]
+charset = utf-8

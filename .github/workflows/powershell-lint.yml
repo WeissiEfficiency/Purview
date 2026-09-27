@@ -1,0 +1,44 @@
+name: PowerShell lint
+
+on:
+  push:
+    paths: ['**.ps1', 'PSScriptAnalyzerSettings.psd1', '.github/workflows/powershell-lint.yml']
+  pull_request:
+    paths: ['**.ps1', 'PSScriptAnalyzerSettings.psd1', '.github/workflows/powershell-lint.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Syntax und UTF-8-BOM pruefen
+        shell: pwsh
+        run: |
+          $failed = $false
+          foreach ($file in Get-ChildItem -Recurse -Filter *.ps1) {
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile($file.FullName, [ref]$null, [ref]$errors)
+            if ($errors) { $failed = $true; Write-Host "::error file=$($file.FullName)::$($errors -join '; ')" }
+
+            # Windows PowerShell 5.1 liest Dateien ohne BOM als ANSI; Umlaute in
+            # Label-Tooltips wuerden sonst verfaelscht im Tenant landen.
+            $bytes = [System.IO.File]::ReadAllBytes($file.FullName)
+            if ($bytes.Length -lt 3 -or $bytes[0] -ne 0xEF -or $bytes[1] -ne 0xBB -or $bytes[2] -ne 0xBF) {
+              $failed = $true; Write-Host "::error file=$($file.FullName)::Datei muss als UTF-8 mit BOM gespeichert sein."
+            }
+          }
+          if ($failed) { exit 1 }
+
+      - name: PSScriptAnalyzer
+        shell: pwsh
+        run: |
+          Install-Module PSScriptAnalyzer -RequiredVersion 1.23.0 -Scope CurrentUser -Force
+          $results = Invoke-ScriptAnalyzer -Path . -Recurse -Settings ./PSScriptAnalyzerSettings.psd1
+          foreach ($r in $results) {
+            Write-Host "::$(if ($r.Severity -eq 'Error') { 'error' } else { 'warning' }) file=$($r.ScriptPath),line=$($r.Line)::$($r.RuleName): $($r.Message)"
+          }
+          if (@($results).Count -gt 0) { exit 1 }
