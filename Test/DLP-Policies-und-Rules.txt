@@ -2,6 +2,10 @@ Microsoft Purview DLP
 Dokumentation der exportierten Policies und Rules
 =================================================
 
+HISTORISCHER STAND: Export vom 2026-08-28 aus dem frueheren Tenant M365DS410216.
+Beschreibt NICHT die aktuelle Konfiguration. Aktueller Soll-Stand:
+UseCases/UseCaseKontext.md; aktueller Ist-Stand: Test/Get-DLPPolicies.ps1 ausfuehren.
+
 Quelle
 ------
 Erstellt auf Basis der Exporte:

@@ -11,7 +11,7 @@ Automatisierungsskripte, Use-Case-Dokumentation und Demo-Material für ein produ
 | `Modules/PurviewSetup/` | Gemeinsames Modul für Logging, Verbindung, Konfiguration und Soll/Ist-Vergleich |
 | `Presets/` | Wiederverwendbare Automatisierungen: Admin zu Verteilergruppen hinzufügen, Tenant-Identitäten inventarisieren, Purview-Konfiguration vollständig zurücksetzen |
 | `Test/` | Testvarianten der Setup-Skripte (rufen die Skripte in `Main Setup/` mit Präfix `Test-` für Labels und `Test ` für Policies/Regeln auf) sowie Export-/Abfrage-Skripte |
-| `UseCases/` | Ausführliche Anleitung sowie Use-Case-Matrizen zu Label-Freigaben/RMS und M365-DLP-Demoszenarien |
+| `UseCases/` | Soll-Konfiguration (`UseCaseKontext.md`), Laufanleitung, Testkonten (`Testkonten.md`) sowie Use-Case-Matrizen zu Label-Freigaben/RMS und M365-DLP-Demoszenarien |
 | `Demo Dokumente/` | Testdokumente mit unterschiedlichen Vertraulichkeitsstufen, ein Demo-Runbook und ein Testprotokoll |
 | `Roadmap/` | Planungsdokumente: Compliance-Manager-Priorisierung, ISO/IEC 27001:2022-Gap-Analyse und Architekturkonzept (Baseline, Governance, PIM) |
 
@@ -56,13 +56,14 @@ Tenant-spezifische Werte stehen ausschließlich in `config/tenant.psd1`. Bei ein
 
 ## Roadmap
 
-Im Ordner `Roadmap/` liegen drei weiterführende Planungsdokumente:
+Im Ordner `Roadmap/` liegen vier Planungsdokumente:
 
+- `ISO27001-Purview-Gesamtkonzept.md` — Zielarchitektur mit Label-/DLP-Baseline, Governance-Rollenmodell, PIM-Konzeption sowie technischen und rechtlichen Voraussetzungen (u. a. Betriebsrat, DSGVO)
+- `Governance-LeastPrivilege-VierAugen.md` — Least Privilege und Vier-Augen-Prinzip je Purview-Lösung
 - `Compliance-Manager-Implementierungsplan.md` — Priorisierung offener Compliance-Manager-Improvement-Actions
-- `ISO27001-Sensitivity-Labels-DLP-Roadmap.md` — Gap-Analyse gegen ISO/IEC 27001:2022 Annex-A-Controls, inkl. Tracking-Gaps vs. echte Lücken
-- `ISO27001-Purview-Gesamtkonzept.md` — Architekturkonzept mit Label-/DLP-Baseline, Governance-Rollenmodell und PIM-Konzeption für Purview-Rollengruppen
+- `Visualisierungen.md` — Diagramme zu Repository, Labelhierarchie, DLP-Logik, Roadmap und RACI
 
-Diese Dokumente sind reine Planungsartefakte; keine der dort beschriebenen Maßnahmen ist automatisch umgesetzt.
+Diese Dokumente sind Planungsartefakte; die tatsächlich umgesetzte Konfiguration beschreibt `UseCases/UseCaseKontext.md`. Änderungen am Repository: `CHANGELOG.md`.
 
 ## Bekannte offene Punkte
 
@@ -73,8 +74,9 @@ Diese Dokumente sind reine Planungsartefakte; keine der dort beschriebenen Maßn
 - Die Team-Publishing-Policies (Legal, Finance, Leadership) werden zunächst mit `ExchangeLocation All` angelegt, weil `New-LabelPolicy` die Verteilergruppen im Tenant nicht direkt auflöst, und anschließend von `Main Setup/Set-PublishingPolicyGroups.ps1` auf die Gruppen eingeschränkt. `Create-PublishingPolicies.ps1` führt diesen Schritt automatisch aus und loggt einen Fehler, wenn er scheitert (dann gelten die Policies für alle Benutzer).
 - Neue DLP-Policies werden standardmäßig im Modus `TestWithNotifications` erstellt (`-PolicyMode Enable` für den Produktivbetrieb).
 - Copilot-Regeln verwenden `RestrictAccess` (`ExcludeContentProcessing`), weil `BlockAccess` für den Copilot-Workload abgelehnt wird. Die Google-Workspace-Regel ist optional (`-IncludeGoogleWorkspace`) und wird vom Tenant derzeit abgelehnt.
+- Die Office-Dateien in `Demo Dokumente/` (Runbook, Testprotokoll) sind abgeleitete Arbeitsdokumente; maßgeblich sind die Markdown-Dateien in `UseCases/`.
 
-> Früher an dieser Stelle gelistete Punkte (Finance/Legal als `ModernGroupLocation`, widersprüchliche Endpoint-Bedingung) wurden behoben — siehe Commit-Historie von `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Create-DlpComplianceRule.ps1`.
+Behobene Punkte stehen in `CHANGELOG.md`.
 
 ## Qualitätssicherung
 

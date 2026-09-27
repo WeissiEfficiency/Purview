@@ -1,5 +1,12 @@
 # Use-Case-Matrix: Label-Freigaben und RMS-Rechte
 
+| | |
+|---|---|
+| **Status** | Arbeitsstand, entspricht `Main Setup/Create-SensitivityLabels.ps1` |
+| **Stand** | 2026-09-27 |
+| **Soll-Konfiguration** | `UseCases/UseCaseKontext.md` |
+| **Testkonten** | `UseCases/Testkonten.md` |
+
 ## Zweck
 
 Diese Matrix beschreibt die Freigaben, die sich direkt aus den RMS-Einstellungen der produktiven Sensitivity Labels ergeben. Sie beantwortet:
@@ -13,8 +20,8 @@ Es werden ausschließlich produktive Labels ohne `Test-` betrachtet.
 
 ## Grundlage
 
-- `Create-SensitivityLabels.ps1`
-- Tenant-Inventur und Gruppenmitglieder vom 2026-08-28
+- `Create-SensitivityLabels.ps1`, Gruppen aus `config/tenant.psd1`
+- Gruppenmitglieder: `UseCases/Testkonten.md`
 - Die Rechte werden in den Labels über `EncryptionProtectionType`, `EncryptionRightsDefinitions` und `EncryptionOfflineAccessDays` gesetzt.
 
 ## 1. RMS-Modell der Labels
@@ -26,9 +33,14 @@ Es werden ausschließlich produktive Labels ohne `Test-` betrachtet.
 | `General-Extern` | `RemoveProtection` | Keine festen RMS-Empfängerrechte | Nicht durch dieses Label eingeschränkt |
 | `Confidential-Intern` | `RemoveProtection` | Keine festen RMS-Empfängerrechte | Nicht durch dieses Label eingeschränkt |
 | `Confidential-Extern` | `RemoveProtection` | Keine festen RMS-Empfängerrechte | Nicht durch dieses Label eingeschränkt |
-| `Confidential-Legal` | `Template` | Legal Team mit Vollzugriff; Leadership mit Lesezugriff | `OfflineAccessDays = 0`: kein Offlinezugriff |
-| `Confidential-Finance` | `Template` | Finance Team mit Vollzugriff; Leadership mit Lesezugriff | `OfflineAccessDays = 0`: kein Offlinezugriff |
-| `Strictly-Confidential-Intern` | `Template` | Leadership mit Vollzugriff | `OfflineAccessDays = 0`: kein Offlinezugriff |
+| `Confidential-Legal` | `Template` | Legal Team: Co-Owner; Leadership: Co-Author | `OfflineAccessDays = 0`: kein Offlinezugriff |
+| `Confidential-Finance` | `Template` | Finance Team: Co-Owner; Leadership: Co-Author | `OfflineAccessDays = 0`: kein Offlinezugriff |
+| `Strictly-Confidential-Intern` | `Template` | Leadership: Co-Owner | `OfflineAccessDays = 0`: kein Offlinezugriff |
+
+**Co-Owner** = `VIEW, VIEWRIGHTSDATA, DOCEDIT, EDIT, PRINT, EXTRACT, REPLY, REPLYALL, FORWARD, EDITRIGHTSDATA, EXPORT, OBJMODEL, OWNER` (Vollzugriff inkl. Rechteverwaltung).
+**Co-Author** = `VIEW, VIEWRIGHTSDATA, DOCEDIT, EDIT, PRINT, EXTRACT, REPLY, REPLYALL, FORWARD, OBJMODEL` (bearbeiten, drucken, kopieren, weiterleiten; kein Ändern der Rechte, kein Export ohne Schutz).
+
+> Mitglieder mehrerer Gruppen erhalten die Summe ihrer Rechte. Wer z. B. in Finance Team **und** Leadership ist (Debra Berger, Megan Bowen, Lynne Robbins), hat auf Confidential-Legal Co-Author-Rechte.
 | `Strictly-Confidential-Personalized` | `UserDefined` | Benutzer wählt Empfänger und Schutz selbst | Abhängig von der Benutzerentscheidung |
 
 ## 2. Rechteübersicht nach Benutzerkreis
@@ -39,15 +51,13 @@ Es werden ausschließlich produktive Labels ohne `Test-` betrachtet.
 
 | Benutzerkreis | Öffnen/Lesen | Bearbeiten | Drucken/Extrahieren | Weiterleiten/Export | Offline |
 |---|---:|---:|---:|---:|---:|
-| Legal Team | Ja | Ja | Ja | Ja | Nein |
-| Leadership | Ja | Nein laut Definition | Nein laut Definition | Nein laut Definition | Nein |
-| Finance Team | Nein, sofern nicht zusätzlich berechtigt | Nein | Nein | Nein | Nein |
+| Legal Team | Ja | Ja | Ja | Ja (inkl. Export) | Nein |
+| Leadership | Ja | Ja | Ja | Weiterleiten ja, Export ohne Schutz nein | Nein |
+| Finance Team ohne Leadership | Nein | Nein | Nein | Nein | Nein |
 | Andere interne Benutzer | Nein | Nein | Nein | Nein | Nein |
 | Externe Benutzer | Nein | Nein | Nein | Nein | Nein |
 
-In der Konfiguration erhält Legal Team die Rechte `VIEW`, `VIEWRIGHTSDATA`, `DOCEDIT`, `EDIT`, `PRINT`, `EXTRACT`, `REPLY`, `REPLYALL`, `FORWARD`, `EDITRIGHTSDATA`, `EXPORT`, `OBJMODEL` und `OWNER`.
-
-Leadership erhält `VIEW`, `VIEWRIGHTSDATA` und `OBJMODEL`.
+Legal Team erhält Co-Owner-, Leadership Co-Author-Rechte.
 
 ### 2.2 Confidential-Finance
 
@@ -55,13 +65,13 @@ Leadership erhält `VIEW`, `VIEWRIGHTSDATA` und `OBJMODEL`.
 
 | Benutzerkreis | Öffnen/Lesen | Bearbeiten | Drucken/Extrahieren | Weiterleiten/Export | Offline |
 |---|---:|---:|---:|---:|---:|
-| Finance Team | Ja | Ja | Ja | Ja | Nein |
-| Leadership | Ja | Nein laut Definition | Nein laut Definition | Nein laut Definition | Nein |
-| Legal Team | Nein, sofern nicht zusätzlich berechtigt | Nein | Nein | Nein | Nein |
+| Finance Team | Ja | Ja | Ja | Ja (inkl. Export) | Nein |
+| Leadership | Ja | Ja | Ja | Weiterleiten ja, Export ohne Schutz nein | Nein |
+| Legal Team ohne Leadership | Nein | Nein | Nein | Nein | Nein |
 | Andere interne Benutzer | Nein | Nein | Nein | Nein | Nein |
 | Externe Benutzer | Nein | Nein | Nein | Nein | Nein |
 
-In der Konfiguration erhält Finance Team dieselben Vollzugriffsrechte wie Legal Team. Leadership erhält Lesezugriff sowie `OBJMODEL`.
+Finance Team erhält Co-Owner-, Leadership Co-Author-Rechte.
 
 ### 2.3 Strictly-Confidential-Intern
 
@@ -70,12 +80,12 @@ In der Konfiguration erhält Finance Team dieselben Vollzugriffsrechte wie Legal
 | Benutzerkreis | Öffnen/Lesen | Bearbeiten | Drucken/Extrahieren | Weiterleiten/Export | Offline |
 |---|---:|---:|---:|---:|---:|
 | Leadership | Ja | Ja | Ja | Ja | Nein |
-| Finance Team | Nein, sofern nicht zusätzlich berechtigt | Nein | Nein | Nein | Nein |
-| Legal Team | Nein, sofern nicht zusätzlich berechtigt | Nein | Nein | Nein | Nein |
+| Finance Team ohne Leadership | Nein | Nein | Nein | Nein | Nein |
+| Legal Team ohne Leadership | Nein | Nein | Nein | Nein | Nein |
 | Andere interne Benutzer | Nein | Nein | Nein | Nein | Nein |
 | Externe Benutzer | Nein | Nein | Nein | Nein | Nein |
 
-Leadership erhält `VIEW`, `VIEWRIGHTSDATA`, `DOCEDIT`, `EDIT`, `PRINT`, `EXTRACT`, `REPLY`, `REPLYALL`, `FORWARD`, `EDITRIGHTSDATA`, `EXPORT`, `OBJMODEL` und `OWNER`.
+Leadership erhält Co-Owner-Rechte. Externe Freigabe und externer Mailversand werden zusätzlich per DLP blockiert.
 
 ### 2.4 Strictly-Confidential-Personalized
 
@@ -106,45 +116,34 @@ Das bedeutet: Die Labels selbst definieren keinen festen RMS-Empfängerkreis. De
 | Label | RMS-Freigabe durch Label | Externes Teilen |
 |---|---|---|
 | `Public` | Kein fester RMS-Schutz | Durch normale M365-Freigabe möglich |
-| `General-Intern` | Kein fester RMS-Schutz | Durch DLP blockiert, wenn der externe Zugriff erkannt wird |
+| `General-Intern` | Kein fester RMS-Schutz | SharePoint/OneDrive: durch DLP blockiert; E-Mail: durch DLP verschlüsselt |
 | `General-Extern` | Kein fester RMS-Schutz | Für externe Kommunikation vorgesehen; DLP-Ergebnis testen |
-| `Confidential-Intern` | Kein fester RMS-Schutz | Durch DLP blockiert, wenn der externe Zugriff erkannt wird |
+| `Confidential-Intern` | Kein fester RMS-Schutz | SharePoint/OneDrive und E-Mail: durch DLP blockiert |
 | `Confidential-Extern` | Kein fester RMS-Schutz | Durch DLP-/M365-Berechtigungen kontrollieren |
 
 > Ein Labelname wie `Confidential-Intern` erzeugt allein noch keine RMS-Berechtigung. Die externe Blockierung kommt in dieser Konfiguration aus den DLP-Regeln.
 
-## 4. Konkrete Testbenutzer
+## 4. Testbenutzer
 
-| Rolle | Benutzer | Konto | Verifizierte Gruppe |
-|---|---|---|---|
-| Finance-Pilot | Debra Berger | `DebraB@M365DS410216.OnMicrosoft.com` | Finance Team und Leadership |
-| Legal-Pilot | Grady Archie | `GradyA@M365DS410216.OnMicrosoft.com` | Legal Team |
-| Leadership-Pilot | Alex Wilber | `AlexW@M365DS410216.OnMicrosoft.com` | Leadership |
-| Baseline-Pilot | Christie Cline | `ChristieC@M365DS410216.OnMicrosoft.com` | Keine Mitgliedschaft in den drei geprüften Gruppen |
-| Administration | MOD Administrator | `admin@M365DS410216.onmicrosoft.com` | Leadership; nur für Portalprüfung verwenden |
-
-Weitere relevante Mitglieder:
-
-- Finance Team: Pradeep Gupta, Megan Bowen, Lynne Robbins und Diego Siciliani
-- Legal Team: Joni Sherman
-- Leadership: MOD Administrator, Patti Fernandez, Joni Sherman, Nestor Wilke, Isaiah Langer, Adele Vance, Irvin Sayers, Lee Gu, Megan Bowen, Lynne Robbins, Lidia Holloway und Miriam Graham
+Konten, Gruppenmitgliedschaften und externe Testempfänger stehen ausschließlich in `UseCases/Testkonten.md`. Für Negativtests nur Konten ohne Mehrfachmitgliedschaft verwenden (z. B. Pradeep Gupta für „Finance ohne Legal-Rechte“, Christie Cline für „keine Fachgruppe“).
 
 ## 5. Freigabe-Use-Cases
 
 | Nr. | Ausführender Benutzer | Label | Ziel | Erwartete RMS-Wirkung | Erwartete DLP-Wirkung |
 |---:|---|---|---|---|---|
 | 1 | Grady Archie | `Confidential-Legal` | Joni Sherman | Öffnen und Bearbeiten erlaubt | Intern erlaubt |
-| 2 | Grady Archie | `Confidential-Legal` | Alex Wilber | Öffnen erlaubt; Bearbeiten/Export nicht vorgesehen | Intern erlaubt |
-| 3 | Grady Archie | `Confidential-Legal` | Debra Berger | Kein Zugriff durch Labelrechte | Intern nicht berechtigt |
+| 2 | Grady Archie | `Confidential-Legal` | Alex Wilber | Öffnen und Bearbeiten erlaubt; Rechte ändern und Export ohne Schutz nicht erlaubt | Intern erlaubt |
+| 3 | Grady Archie | `Confidential-Legal` | Pradeep Gupta | Kein Zugriff durch Labelrechte | Intern nicht berechtigt |
 | 4 | Debra Berger | `Confidential-Finance` | Finance-Team-Mitglied | Öffnen und Bearbeiten erlaubt | Intern erlaubt |
-| 5 | Debra Berger | `Confidential-Finance` | Alex Wilber | Öffnen erlaubt; Bearbeiten/Export nicht vorgesehen | Intern erlaubt |
+| 5 | Debra Berger | `Confidential-Finance` | Alex Wilber | Öffnen und Bearbeiten erlaubt; Rechte ändern und Export ohne Schutz nicht erlaubt | Intern erlaubt |
 | 6 | Debra Berger | `Confidential-Finance` | Grady Archie | Kein Zugriff durch Labelrechte | Intern nicht berechtigt |
 | 7 | Alex Wilber | `Strictly-Confidential-Intern` | Leadership-Mitglied | Öffnen, Bearbeiten, Export und Weiterleiten erlaubt | Intern erlaubt |
 | 8 | Alex Wilber | `Strictly-Confidential-Intern` | Christie Cline | Kein Zugriff durch Labelrechte | Zugriff durch RMS verhindert |
+| 8a | Alex Wilber | `Strictly-Confidential-Intern` | externe Testadresse (SharePoint-Freigabe und E-Mail) | Kein RMS-Zugriff | DLP blockiert (`Block strictly confidential intern …`) |
 | 9 | Christie Cline | `General-Intern` | interne Testadresse | Zugriff durch M365-Berechtigungen | Intern erlaubt |
-| 10 | Christie Cline | `General-Intern` | externe Testadresse | Label selbst gibt keinen RMS-Empfänger vor | DLP blockiert externes Teilen |
-| 11 | Debra Berger | `Confidential-Finance` | Google Drive | Kein RMS-Zugriff für externe Anwendung | DLP blockiert den Upload |
-| 12 | Grady Archie | `Confidential-Legal` | externe Testadresse | Kein RMS-Zugriff durch Template | DLP blockiert externe Freigabe |
+| 10 | Christie Cline | `General-Intern` | externe Testadresse (SharePoint-/OneDrive-Freigabe) | Label selbst gibt keinen RMS-Empfänger vor | DLP blockiert externes Teilen |
+| 11 | Pradeep Gupta | `Confidential-Finance` | eingeschränkte Cloud-/KI-App (verwaltetes Gerät) | RMS-Schutz bleibt am Dokument | Endpoint-DLP blockiert den Upload |
+| 12 | Grady Archie | `Confidential-Legal` | externe Testadresse (SharePoint-/OneDrive-Freigabe) | Kein RMS-Zugriff durch Template | DLP blockiert externe Freigabe |
 | 13 | Alex Wilber | `Strictly-Confidential-Personalized` | ausgewählter externer Empfänger | Abhängig von der Benutzerauswahl | DLP-Regel und Empfänger prüfen |
 
 ## 6. Schritt-für-Schritt-Demos
@@ -156,9 +155,9 @@ Weitere relevante Mitglieder:
 3. `Confidential-Legal` anwenden.
 4. Das Dokument an Joni Sherman und Alex Wilber übergeben.
 5. Als Joni Sherman öffnen, bearbeiten, drucken und exportieren.
-6. Als Alex Wilber öffnen und versuchen zu bearbeiten oder zu exportieren.
-7. Als Debra Berger öffnen versuchen.
-8. Erwartung: Legal hat Vollzugriff, Leadership kann lesen, Finance erhält keinen Zugriff.
+6. Als Alex Wilber öffnen und bearbeiten; danach versuchen, die Berechtigungen zu ändern.
+7. Als Pradeep Gupta (Finance, nicht Leadership) öffnen versuchen.
+8. Erwartung: Legal hat Vollzugriff, Leadership kann bearbeiten, aber keine Rechte ändern, Pradeep Gupta erhält keinen Zugriff.
 
 ### Demo 2: Confidential-Finance mit Finance und Leadership
 
@@ -166,9 +165,9 @@ Weitere relevante Mitglieder:
 2. Eine künstliche Budgetdatei erstellen.
 3. `Confidential-Finance` anwenden.
 4. Als Finance-Mitglied öffnen und bearbeiten.
-5. Als Alex Wilber öffnen.
-6. Als Grady Archie öffnen versuchen.
-7. Erwartung: Finance hat Vollzugriff, Leadership kann lesen, Legal ist nicht berechtigt.
+5. Als Alex Wilber öffnen und bearbeiten.
+6. Als Grady Archie (Legal, nicht Leadership) öffnen versuchen.
+7. Erwartung: Finance hat Vollzugriff, Leadership kann bearbeiten, Legal ist nicht berechtigt.
 
 ### Demo 3: Strictly-Confidential-Intern für Leadership
 
@@ -178,7 +177,8 @@ Weitere relevante Mitglieder:
 4. Mit einem weiteren Leadership-Mitglied teilen.
 5. Als Christie Cline öffnen versuchen.
 6. Offlinekopie erstellen oder Dokument nach Ablauf der Sitzung öffnen versuchen.
-7. Erwartung: Nur Leadership erhält Zugriff; Offlinezugriff ist durch `OfflineAccessDays = 0` nicht vorgesehen.
+7. Externe Freigabe und externen Mailversand versuchen.
+8. Erwartung: Nur Leadership erhält Zugriff; Offlinezugriff ist durch `OfflineAccessDays = 0` nicht vorgesehen; externe Weitergabe wird per DLP blockiert.
 
 ### Demo 4: Label ohne RMS-Rechte gegen DLP
 
@@ -230,6 +230,9 @@ Für jedes Label-Freigabe-Szenario festhalten:
 - `RemoveProtection` bedeutet nicht automatisch öffentliche Freigabe. SharePoint-/OneDrive-Berechtigungen und DLP gelten weiterhin.
 - Gruppenmitgliedschaft und RMS-Rechte müssen beide stimmen.
 - Finance Team und Legal Team sind im Tenant Verteilergruppen und werden über `ExchangeLocation` zugeordnet; die Zuordnung erfolgt nach der Policy-Erstellung durch `Set-PublishingPolicyGroups.ps1`.
+- Wer ein geschütztes Label anwendet, ist RMS-Aussteller und behält Vollzugriff. Die Fachbereichslabels sind deshalb nur für die berechtigten Gruppen veröffentlicht.
+- `OfflineAccessDays = 0` erzwingt bei jedem Öffnen eine Online-Prüfung; auf Reisen oder ohne Netz sind die Dokumente nicht nutzbar.
+- Damit SharePoint, OneDrive, Suche und Copilot verschlüsselte Office-Dateien verarbeiten und Co-Authoring funktioniert, muss die Sensitivity-Label-Integration für SharePoint aktiviert sein (`Set-SPOTenant -EnableAIPIntegration $true`).
 - Ein Administrator kann durch zusätzliche Rechte ein anderes Ergebnis sehen als ein normaler Benutzer.
 - Änderungen an Gruppenmitgliedschaften und Labels können verzögert wirksam werden.
 - Die tatsächliche Portal- und Office-Anzeige ist nach jeder Änderung mit einem echten Pilotkonto zu prüfen.

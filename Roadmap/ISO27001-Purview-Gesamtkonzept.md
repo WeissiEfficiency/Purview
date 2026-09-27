@@ -1,6 +1,12 @@
 # ISO/IEC 27001:2022 mit Microsoft Purview — Architekturkonzept für Sensitivity Labeling und DLP
 
-> **Perspektive dieses Dokuments:** Verfasst aus Sicht eines Cloud Security Principal Consultant / Principal Security Cloud Architect. Es beschreibt eine referenzfähige Zielarchitektur — unabhängig vom aktuellen Repo-Implementierungsstand — mit konkreten Baseline-Konfigurationen, Governance-Rollenmodell und einer PIM-Konzeption für Purview-Rollengruppen. Der Abgleich mit dem tatsächlichen Repo-Stand erfolgt weiterhin in `Roadmap/ISO27001-Sensitivity-Labels-DLP-Roadmap.md`.
+| | |
+|---|---|
+| **Status** | Konzept (Zielarchitektur), nicht freigegeben |
+| **Stand** | 2026-09-27 |
+| **Umsetzungsstand im Repo** | `UseCases/UseCaseKontext.md` |
+
+> **Perspektive dieses Dokuments:** Verfasst aus Sicht eines Cloud Security Principal Consultant / Principal Security Cloud Architect. Es beschreibt eine referenzfähige Zielarchitektur — unabhängig vom aktuellen Repo-Implementierungsstand — mit konkreten Baseline-Konfigurationen, Governance-Rollenmodell und einer PIM-Konzeption für Purview-Rollengruppen. Die im Repo tatsächlich umgesetzte Konfiguration (Labelschema General/Confidential/Strictly-Confidential mit Fachbereichslabels) beschreibt `UseCases/UseCaseKontext.md`; die Unterschiede zur hier beschriebenen Baseline sind bewusst.
 
 ---
 
@@ -8,7 +14,7 @@
 
 ### 1.1 Ausgangslage
 
-Ein Unternehmen, das ISO/IEC 27001:2022 anstrebt oder aufrechterhält, muss für die Controls A.5.12 (Classification of Information), A.5.13 (Labelling of Information) und A.8.12 (Data Leakage Prevention) einen belastbaren technischen Nachweis liefern. Microsoft Purview liefert dafuer die Plattform. Die Aufgabe eines Cloud Security Architects ist es, aus der Fülle der Purview-Funktionen eine **Baseline** zu destillieren — eine Mindestkonfiguration, die auditfähig, betreibbar und erweiterbar ist, statt eine Maximalkonfiguration, die niemand pflegen kann.
+Ein Unternehmen, das ISO/IEC 27001:2022 anstrebt oder aufrechterhält, muss für die Controls A.5.12 (Classification of Information), A.5.13 (Labelling of Information) und A.8.12 (Data Leakage Prevention) einen belastbaren technischen Nachweis liefern. Eng verbunden sind außerdem A.5.14 (Information Transfer), A.5.10 (Acceptable Use) und A.5.33 (Protection of Records). Microsoft Purview liefert dafür die Plattform. Die Aufgabe eines Cloud Security Architects ist es, aus der Fülle der Purview-Funktionen eine **Baseline** zu destillieren — eine Mindestkonfiguration, die auditfähig, betreibbar und erweiterbar ist, statt eine Maximalkonfiguration, die niemand pflegen kann.
 
 ### 1.2 Leitprinzipien der Architektur
 
@@ -48,9 +54,15 @@ Diese acht Labels (zwei reine Gruppen ohne eigene Schutzwirkung, sechs anwendbar
 | Publishing-Policy | Labelumfang | Zielgruppe (Scope-Typ) | Mandatory Labeling | Default-Label |
 |---|---|---|---|---|
 | `PP-AllUsers-Baseline` | Public, Internal, Confidential \ Anyone, Confidential \ All Employees | Exchange: Alle Benutzer | Ja | `Internal` |
-| `PP-Leadership-Extended` | Baseline + Highly Confidential \ All Employees, Highly Confidential \ Specific People | Entra-Sicherheitsgruppe "Leadership" (Modern Group) | Ja | `Confidential \ All Employees` |
+| `PP-Leadership-Extended` | Baseline + Highly Confidential \ All Employees, Highly Confidential \ Specific People | Gruppe "Leadership": als Microsoft-365-Gruppe über `ModernGroupLocation`, als mail-aktivierte Sicherheitsgruppe über `ExchangeLocation` | Ja | `Confidential \ All Employees` |
 
 Kritischer Architekturhinweis: Die Zielgruppe einer Publishing-Policy muss dem tatsächlichen Objekttyp in Entra ID entsprechen. `ModernGroupLocation` funktioniert ausschließlich mit Microsoft-365-Gruppen; klassische Verteilerlisten und mail-aktivierte Sicherheitsgruppen müssen über `ExchangeLocation` adressiert werden. Diese Verwechslung ist der häufigste technische Konfigurationsfehler bei Purview-Rollouts und führt zu einer Policy, die zwar existiert, aber bei keinem Benutzer wirkt.
+
+Weitere Regeln für Publishing Policies:
+
+- Benutzer erhalten die **Vereinigungsmenge** der Labels aller für sie geltenden Policies. Eingeschränkte Labels gehören deshalb nie in eine Policy für alle Benutzer — wer ein geschütztes Label anwendet, ist RMS-Aussteller und behält in der Regel Vollzugriff.
+- Einstellungen wie Standardlabel und Pflichtlabel kommen nur aus der Policy mit der **höchsten Priorität**. Die Reihenfolge ist für Mitglieder mehrerer Zielgruppen bewusst festzulegen.
+- Ein Standardlabel für Dokumente (nicht nur für E-Mails) sorgt dafür, dass neue Inhalte nicht ungekennzeichnet bleiben; ungekennzeichnete Inhalte erfasst keine labelbasierte DLP-Regel.
 
 ### 2.3 Technische Konfigurationsparameter je Schutzstufe
 
@@ -93,13 +105,21 @@ Architekturregel: Jede Auto-Labeling-Policy durchläuft zwingend eine mindestens
 |---|---|---|---|---|
 | `DLP-SPO-ODB-ExternalSharing` | `Block-HighlyConfidential-External` | Label = Highly Confidential UND Zugriff außerhalb Organisation | `BlockAccess = $true`, Alert, Incident Report | Kritisch |
 | `DLP-SPO-ODB-ExternalSharing` | `Block-Confidential-External` | Label = Confidential UND Zugriff außerhalb Organisation | `BlockAccess = $true`, Alert | Hoch |
-| `DLP-EXO-ExternalMail` | `Encrypt-Confidential-External` | Label = Confidential \ All Employees UND Empfänger extern | RMS-Verschlüsselung, Policy Tip, `StopPolicyProcessing = $true` | Hoch |
+| `DLP-EXO-ExternalMail` | `Encrypt-Confidential-External` | Label = Confidential \ Anyone (nicht bereits verschlüsselt) UND Empfänger extern | Verschlüsselung (z. B. Vorlage `Encrypt`), Policy Tip, `StopPolicyProcessing = $true` | Hoch |
 | `DLP-EXO-ExternalMail` | `Block-HighlyConfidential-External` | Label = Highly Confidential UND Empfänger extern | `BlockAccess = $true`, Alert, Incident Report | Kritisch |
-| `DLP-Endpoint-DeviceControl` | `Block-Confidential-USBCopy` | Label ≥ Confidential UND Zielgerät = Wechseldatenträger | `BlockAccess = $true` (oder Audit-Only in Pilotphase) | Hoch |
-| `DLP-CloudApps-Unsanctioned` | `Block-Confidential-UnsanctionedUpload` | Label ≥ Confidential UND Zielanwendung nicht freigegeben | `BlockAccess = $true`, Alert | Hoch |
-| `DLP-AI-Copilot` | `Block-Confidential-CopilotProcessing` | Label ≥ Confidential | `BlockAccess = $true`, Alert | Kritisch |
+| `DLP-Endpoint-DeviceControl` | `Block-Confidential-USBCopy` | Label ≥ Confidential UND Zielgerät = Wechseldatenträger | `EndpointDlpRestrictions` `RemovableMedia` = Block (Audit in der Pilotphase) | Hoch |
+| `DLP-CloudApps-Unsanctioned` | `Block-Confidential-UnsanctionedUpload` | Label ≥ Confidential UND Upload in eingeschränkte Dienstdomäne | `EndpointDlpRestrictions` `CloudEgress` = Block, Alert | Hoch |
+| `DLP-AI-Copilot` | `Block-Confidential-CopilotProcessing` | Label ≥ Confidential | `RestrictAccess` `ExcludeContentProcessing` = Block, Alert | Kritisch |
 
-Architekturhinweis zur Regelqualität: Jede Regel, deren Name eine Blockierung suggeriert ("Block-…"), muss zwingend `BlockAccess = $true` gesetzt haben. Diese Konsistenzprüfung sollte Teil jeder technischen Abnahme sein — eine Diskrepanz zwischen Regelname und tatsächlicher Aktion ist der häufigste Einzelfund in technischen Purview-Reviews.
+Architekturhinweis zur Regelqualität: Jede Regel, deren Name eine Blockierung suggeriert ("Block-…"), muss die für ihren Workload **wirksame** Blockaktion gesetzt haben. Das ist nicht überall `BlockAccess`:
+
+| Workload | Wirksame Blockaktion |
+|---|---|
+| Exchange, SharePoint, OneDrive, Teams | `BlockAccess = $true` |
+| Endpoint | `EndpointDlpRestrictions` (z. B. `CloudEgress`, `RemovableMedia`, `Print`) mit `Block` |
+| Microsoft 365 Copilot | `RestrictAccess` mit `ExcludeContentProcessing` = `Block` (`BlockAccess` wird abgelehnt) |
+
+Diese Konsistenzprüfung gehört in jede technische Abnahme — eine Diskrepanz zwischen Regelname und tatsächlicher Aktion ist der häufigste Einzelfund in technischen Purview-Reviews. Für weniger kritische Stufen ist „Blockieren mit Übersteuerung und Begründung“ oft die bessere Wahl als ein harter Block, weil es Geschäftsprozesse nicht stoppt und trotzdem einen Nachweis erzeugt.
 
 ### 3.3 Priorisierung und Regelverarbeitung
 
@@ -114,7 +134,7 @@ DLP-Regeln in Purview werden in Prioritätsreihenfolge innerhalb einer Policy ve
 | Rolle | ISMS-Funktion | Purview-Rollengruppe (nativ) | Verantwortung |
 |---|---|---|---|
 | ISMS-Verantwortlicher (ISB) | Gesamtverantwortung Informationssicherheit | Kein technischer Zugriff notwendig | Freigabe Klassifizierungsrichtlinie, Risikobewertung, SoA-Pflege |
-| Information Owner (je Fachbereich) | Fachliche Freigabe von Zugriffsregeln | `Information Protection Admins` (nur lesend, Genehmigung außerhalb Purview) | Entscheidung über Empfängerkreise je Label |
+| Information Owner (je Fachbereich) | Fachliche Freigabe von Zugriffsregeln | `Information Protection Readers` (nur lesend; Genehmigung außerhalb Purview) | Entscheidung über Empfängerkreise je Label |
 | Purview Compliance Architect | Technisches Design der Gesamtkonfiguration | `Compliance Administrator` | Konzeption von Labels, Policies, DLP-Regeln (Design, nicht zwingend Implementierung) |
 | Purview Operator (Information Protection) | Operative Pflege von Labels und Publishing-Policies | `Information Protection Admins` | Anlegen/Ändern von Labels und Publishing-Policies gemäß freigegebenem Design |
 | Purview Operator (DLP) | Operative Pflege von DLP-Regeln | `Compliance Data Administrator` + `Information Protection Investigators` (für Alert-Bearbeitung) | Anlegen/Ändern von DLP-Regeln, Bearbeitung von Alerts |
@@ -128,11 +148,13 @@ Microsoft Purview verwendet ein eigenes RBAC-Modell mit rollenbasierten Rollengr
 
 Microsoft Purview-native Rollengruppen können nicht direkt in Privileged Identity Management (PIM) für Microsoft-Entra-Rollen verwaltet werden — PIM für Entra-Rollen deckt nur die globalen Entra-ID-Rollen ab (z. B. die Entra-Rolle "Compliance Administrator"), nicht die Purview-internen Rollengruppen. Der architektonisch korrekte Weg führt über **PIM für Gruppen** (PIM for Groups):
 
-**Schritt 1 — Rollenfähige Sicherheitsgruppe anlegen.** In Entra ID wird für jede Purview-Rollengruppe aus Abschnitt 4.1 eine dedizierte, rollenfähige Sicherheitsgruppe erstellt (Option "Microsoft Entra roles can be assigned to the group" aktiviert), z. B. `PIM-Purview-InfoProtectionAdmins`, `PIM-Purview-ComplianceDataAdmins`.
+**Schritt 1 — Sicherheitsgruppe anlegen.** In Entra ID wird für jede Purview-Rollengruppe aus Abschnitt 4.1 eine dedizierte Sicherheitsgruppe erstellt, z. B. `PIM-Purview-InfoProtectionAdmins`, `PIM-Purview-ComplianceDataAdmins`. Für PIM for Groups ist eine rollenfähige Gruppe nicht zwingend; sie wird aber empfohlen, weil nur Privileged Role Administrators ihre Mitgliedschaft ändern können.
 
 **Schritt 2 — Gruppe der Purview-Rollengruppe zuweisen.** Im Purview-Compliance-Portal unter *Settings > Roles and scopes > Role groups* wird die neu erstellte Entra-Sicherheitsgruppe als Mitglied der entsprechenden nativen Purview-Rollengruppe hinzugefügt. Diese Zuordnung ist eine dauerhafte, aktive Mitgliedschaft — sie wird nicht über PIM verwaltet, sondern die *Mitgliedschaft in der Entra-Gruppe* wird über PIM zeitlich begrenzt.
 
-**Schritt 3 — Gruppe für PIM onboarden.** Im Entra Admin Center unter *Identity Governance > Privileged Identity Management > Groups* wird die Gruppe über "Discover groups" gefunden und mit "Manage groups" für PIM aktiviert. Dieser Schritt ist **unumkehrbar** — eine einmal für PIM onboardete Gruppe kann nicht wieder aus PIM entfernt werden, was bei der Namensgebung und Gruppenstruktur von vornherein berücksichtigt werden muss.
+**Schritt 3 — Gruppe in PIM verwalten.** Im Entra Admin Center unter *Identity Governance > Privileged Identity Management > Groups* wird die Gruppe ausgewählt und für PIM verwaltet. Früher war dafür ein ausdrückliches, nicht umkehrbares Onboarding nötig; das Verhalten hat Microsoft geändert. Den aktuellen Stand vor der Umsetzung in der Microsoft-Dokumentation prüfen.
+
+**Alternative:** Für die Purview-Administration genügen oft die Entra-Rollen *Compliance Administrator* bzw. *Compliance Data Administrator*. Diese lassen sich direkt über PIM für Entra-Rollen verwalten, ohne Gruppenkonstrukt. Die hier beschriebene Gruppenlösung ist nur nötig, wenn feinere Purview-Rollengruppen (z. B. *Information Protection Admins*) zeitlich begrenzt vergeben werden sollen.
 
 **Schritt 4 — Rolleneinstellungen konfigurieren.** Für jede PIM-Gruppe werden Aktivierungsdauer (empfohlen: 4–8 Stunden), MFA-Pflicht bei Aktivierung, Begründungspflicht und optional ein Genehmigungsworkflow (zusätzlicher Genehmiger bei kritischen Rollen wie `Compliance Data Administrator`) festgelegt.
 
@@ -181,10 +203,33 @@ Ein für die Betriebsplanung entscheidender Architekturaspekt: Nach Aktivierung 
 | Phase | Inhalt | Voraussetzung |
 |---|---|---|
 | Phase 1 | Labelschema aus Abschnitt 2.1 (ohne Auto-Labeling), Publishing-Policy-Baseline aus 2.2 | Klassifizierungsstandard (Ebene 2) freigegeben |
-| Phase 2 | DLP-Baseline aus Abschnitt 3.1/3.2 für SPO/ODB und Exchange | Phase 1 stabil, mindestens 4 Wochen Betrieb ohne größere Fehlklassifizierung |
+| Phase 2 | DLP-Baseline aus Abschnitt 3.1/3.2 für SPO/ODB und Exchange | Phase 1 stabil, mindestens 4 Wochen Betrieb ohne größere Fehlklassifizierung; Betriebsvereinbarung und Datenschutzprüfung (Abschnitt 8) abgeschlossen |
 | Phase 3 | Rollenmodell und PIM-Konzeption aus Abschnitt 4 einführen | Phase 1 und 2 etabliert; Entra-ID-P2-Lizenzierung für PIM vorhanden |
 | Phase 4 | Auto-Labeling (Abschnitt 2.4), Endpoint- und Cloud-App-DLP, KI-/Copilot-DLP | Phase 1–3 stabil und auditiert |
 | Phase 5 | PCI-DSS-Default-Policy (nur falls zutreffend), branchenspezifische Erweiterungen | Regulatorische Anwendbarkeit bestätigt |
+
+---
+
+## 7. Technische Voraussetzungen und Stand der Technik
+
+| Thema | Empfehlung |
+|---|---|
+| Labels in SharePoint/OneDrive | `Set-SPOTenant -EnableAIPIntegration $true`: Voraussetzung, damit SharePoint, OneDrive, Suche, eDiscovery und Copilot verschlüsselte Office-Dateien verarbeiten und Co-Authoring funktioniert |
+| Container-Labels | Labels auch für Teams, Microsoft-365-Gruppen und SharePoint-Sites (Privatsphäre, externe Freigabe) nutzen; Standard-Sensitivity-Label je Dokumentbibliothek setzen |
+| Ungekennzeichnete Inhalte | Standardlabel für Dokumente und Auto-Labeling (Abschnitt 2.4) statt reiner Handkennzeichnung; zusätzlich SIT-basierte DLP-Regeln |
+| Offline-Zugriff | `OfflineAccessDays = 0` erzwingt bei jedem Öffnen eine Online-Prüfung; nur für die höchste Stufe, sonst 7–30 Tage |
+| Rechte „nur lesen“ | Ohne `OBJMODEL` vergeben (erlaubt Makrozugriff und damit Auslesen des Inhalts) |
+| KI-Anwendungen | DSPM for AI für Sichtbarkeit; für Copilot `RestrictAccess`; für Dritt-KI-Seiten Endpoint-DLP mit eingeschränkten Dienstdomänen bzw. Browser-Schutz |
+| Adaptive Protection | DLP-Strenge an das Insider-Risk-Level koppeln, sobald Insider Risk Management eingeführt ist |
+
+## 8. Rechtliche und organisatorische Voraussetzungen (Deutschland)
+
+| Thema | Anforderung |
+|---|---|
+| Betriebsrat | DLP-Alerts, Activity Explorer, Insider Risk Management und Communication Compliance sind technische Einrichtungen zur Überwachung von Verhalten und Leistung; Mitbestimmung nach § 87 Abs. 1 Nr. 6 BetrVG. Betriebsvereinbarung vor dem Scharfschalten abschließen |
+| Datenschutz | Rechtsgrundlage und Zweckbindung dokumentieren; Datenschutz-Folgenabschätzung (Art. 35 DSGVO) für IRM und Communication Compliance prüfen; Verzeichnis der Verarbeitungstätigkeiten ergänzen |
+| Pseudonymisierung | In IRM und Communication Compliance die Pseudonymisierung aktiviert lassen; Aufhebung nur im Vier-Augen-Prinzip (`Roadmap/Governance-LeastPrivilege-VierAugen.md`) |
+| Transparenz | Mitarbeitende über Kennzeichnungspflicht, DLP-Maßnahmen und Auswertungen informieren (Richtlinie, Schulung, Policy Tips) |
 
 ---
 

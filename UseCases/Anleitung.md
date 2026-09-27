@@ -1,5 +1,12 @@
 # Vollständige Laufanleitung: Purview Labeling und DLP
 
+| | |
+|---|---|
+| **Status** | Arbeitsstand |
+| **Stand** | 2026-09-27 |
+| **Soll-Konfiguration** | `UseCases/UseCaseKontext.md` |
+| **Testkonten** | `UseCases/Testkonten.md` |
+
 ## 1. Ziel und Reihenfolge
 
 Diese Anleitung richtet die produktive Purview-Konfiguration ein. Testlabels und Testregeln werden nicht verwendet.
@@ -19,11 +26,13 @@ Das zentrale Startskript führt die Schritte 3 bis 5 per Dot-Sourcing in genau d
 ## 2. Voraussetzungen
 
 - Windows PowerShell 5.1 oder PowerShell 7
-- ExchangeOnlineManagement-Modul
-- Purview-/Compliance-Rollen zum Lesen und Erstellen von Labels, Publishing Policies und DLP-Regeln
+- ExchangeOnlineManagement-Modul ab Version 3.7 (für `-DisableWAM`, siehe `DisableWam` in `config/tenant.psd1`)
+- Rollen nach dem Least-Privilege-Modell (`Roadmap/Governance-LeastPrivilege-VierAugen.md`): *Information Protection Admins* für Labels und Publishing Policies, *Compliance Data Administrator* für DLP; möglichst über PIM zeitlich begrenzt statt dauerhaft
 - Exchange-Online-Berechtigungen zum Lesen von Benutzern und Gruppen
-- Interaktive Microsoft-Anmeldung
+- Interaktive Microsoft-Anmeldung mit MFA
 - Kein Passwort in Dateien, Skripten, Logs oder der PowerShell-History
+- Sensitivity Labels für Office-Dateien in SharePoint/OneDrive aktiviert (`Set-SPOTenant -EnableAIPIntegration $true`, SharePoint Online Management Shell). Ohne diese Einstellung können SharePoint, OneDrive, Suche und Copilot verschlüsselte Dateien nicht verarbeiten und Co-Authoring funktioniert nicht.
+- Vor dem Scharfschalten von DLP: Betriebsrat einbinden (Überwachung von Mitarbeitenden, § 87 Abs. 1 Nr. 6 BetrVG) und Datenschutz-Folgenabschätzung prüfen
 
 Modul installieren:
 
@@ -55,27 +64,21 @@ Der Export wird unter `Exports\TenantInventory-<Zeitstempel>` gespeichert:
 - `DistributionGroups.csv`
 - `Summary.json`
 
-Geprüfter Stand vom 2026-08-28:
+Vor der Einrichtung prüfen, dass die Gruppen aus `config/tenant.psd1` im Tenant existieren und den erwarteten Typ haben:
 
-- 34 Benutzerobjekte
-- 13 Microsoft-365-Gruppen
-- 11 Verteilergruppen
-- `Leadership` ist eine private Microsoft-365-Gruppe
-- `Finance Team` und `Legal Team` sind mailfähige, cloudverwaltete Verteilergruppen
+| Ziel | Schlüssel in `config/tenant.psd1` | Erwarteter Typ | Verwendung |
+|---|---|---|---|
+| Finance | `Groups.Finance` | mailfähige Verteilergruppe | `Confidential-Finance`, Finance-Policy |
+| Legal | `Groups.Legal` | mailfähige Verteilergruppe | `Confidential-Legal`, Legal-Policy |
+| Leadership | `Groups.Leadership` | private Microsoft-365-Gruppe | Legal, Finance, Strictly-Confidential-Intern, Leadership-Policy |
 
-Vor der Einrichtung prüfen:
-
-| Ziel | Erwartete Identität | Verwendung |
-|---|---|---|
-| Finance | `FinanceTeam@M365DS410216.onmicrosoft.com` | `Confidential-Finance` |
-| Legal | `LegalTeam@M365DS410216.onmicrosoft.com` | `Confidential-Legal` |
-| Leadership | `Leadership@m365ds410216.onmicrosoft.com` | Legal, Finance und Strictly Confidential |
+Gruppenmitglieder und Testkonten: `UseCases/Testkonten.md`.
 
 > **Wichtig:** Finance Team und Legal Team sind Verteilergruppen (`ExchangeLocation`), Leadership ist eine Microsoft-365-Gruppe (`ModernGroupLocation`). Die Team-Policies werden zunächst für alle Benutzer angelegt und direkt danach von `Set-PublishingPolicyGroups.ps1` auf die Gruppe eingeschränkt. Nach dem Lauf prüfen, dass keine Team-Policy mehr `ExchangeLocation All` hat.
 
 ## 4. Sensitivity Labels prüfen und erstellen
 
-Ohne `-Execute` gibt das Label-Skript nur eine Vorschau aus. Mit `-Execute` erstellt es fehlende Labels und überspringt vorhandene Labels.
+Ohne `-Execute` gibt das Label-Skript nur eine Vorschau aus (mit UPN inklusive Abweichungen vorhandener Labels). Mit `-Execute` erstellt es fehlende Labels, mit `-Execute -UpdateExisting` setzt es vorhandene Labels auf die Definition.
 
 Die produktive Labelstruktur ist:
 
@@ -135,12 +138,12 @@ Vorschau ausführen:
 
 Dabei werden keine Publishing Policies erstellt. Die vier geplanten Policies sind:
 
-| Policy | Zielbereich | Standardlabel |
-|---|---|---|
-| `Policy All, no Standard, No Inheritence` | Exchange: alle Benutzer | keines |
-| `Legal, Intern Standard, Highest Inheritence for Mails` | Legal Team | `General-Intern` |
-| `Finance, Confidential Intern, Perdefinded but Inheritence` | Finance Team | `Confidential-Intern` |
-| `Leadership, Intern , Inheritence` | Leadership | `General-Intern` |
+| Policy | Zielbereich | Labels | Standardlabel |
+|---|---|---|---|
+| `Policy All, no Standard, No Inheritence` | alle Benutzer | 6 allgemeine Labels, **ohne** Legal/Finance/Strictly-Confidential-Intern | keines |
+| `Legal, Intern Standard, Highest Inheritence for Mails` | Legal Team | + `Confidential-Legal` | `General-Intern` |
+| `Finance, Confidential Intern, Perdefinded but Inheritence` | Finance Team | + `Confidential-Finance` | `Confidential-Intern` |
+| `Leadership, Intern , Inheritence` | Leadership | + Legal, Finance, `Strictly-Confidential-Intern` | `General-Intern` |
 
 Nach erfolgreicher Vorschau produktiv ausführen:
 
@@ -153,13 +156,15 @@ Nach erfolgreicher Vorschau produktiv ausführen:
 Danach im Portal oder per PowerShell kontrollieren:
 
 ```powershell
-Get-LabelPolicy | Select-Object Name, Enabled, ExchangeLocation, ModernGroupLocation, AdvancedSettings
+Get-LabelPolicy | Select-Object Name, Priority, ExchangeLocation, ModernGroupLocation, Labels, Settings
 ```
 
 Besonders prüfen:
 
 - produktive Labels ohne `Test-`
-- korrekte Gruppe oder Zielgruppe
+- Fachbereichslabels nur in den Team-Policies, nicht in `Policy All`
+- korrekte Gruppe oder Zielgruppe; keine Team-Policy mit `ExchangeLocation All`
+- Priorität der Policies für Mitglieder mehrerer Teams (die Einstellungen der Policy mit der höchsten Priorität gelten)
 - Standardlabel
 - Anlagenaktion
 - Pflichtlabel und Downgrade-Begründung
@@ -181,15 +186,15 @@ Vorschau ausführen:
   -UserPrincipalName $upn
 ```
 
-Erwartete Verteilung der zehn Regeln:
+Erwartete Verteilung der elf Regeln (zwölf mit `-IncludeGoogleWorkspace`):
 
 | Bereich | Anzahl |
 |---|---:|
-| SPO/ODB | 3 |
-| EXO | 3 |
+| SPO/ODB | 4 |
+| EXO | 4 |
 | Copilot | 2 |
 | Endpoint | 1 |
-| Google Workspace | 1 |
+| Google Workspace (optional, vom Tenant bisher abgelehnt) | 1 |
 
 Vor der produktiven Erstellung prüfen:
 
@@ -197,9 +202,7 @@ Vor der produktiven Erstellung prüfen:
 - Modus neuer DLP-Policies (Parameter `-PolicyMode`, Standard `TestWithNotifications`)
 - Incident-Report-Empfänger (`IncidentReportRecipient` in `config/tenant.psd1`)
 - Labelnamen im Tenant
-- Google-Workspace-Anwendung
-- Endpoint-Bedingung mit `ContentIsNotLabeled=true`
-- Copilot-Regeln: Name spricht von Blockierung, `BlockAccess` ist aktuell aber nicht gesetzt
+- Endpoint DLP: Geräte onboardet, eingeschränkte Dienstdomänen (z. B. KI-Apps, Google Drive) in den Endpoint-DLP-Einstellungen hinterlegt
 
 Produktiv ausführen:
 
@@ -212,7 +215,7 @@ Produktiv ausführen:
 Danach prüfen:
 
 ```powershell
-Get-DlpCompliancePolicy | Select-Object Name, Mode, Enabled, Workload
+Get-DlpCompliancePolicy | Select-Object Name, Mode, Workload
 Get-DlpComplianceRule | Select-Object Name, Policy, Mode, State
 ```
 
@@ -284,14 +287,18 @@ Mindestens diese Testprofile verwenden:
 
 ### Tests für DLP
 
+Voraussetzung: Die DLP-Policies stehen auf `Enable` (neue Policies starten in `TestWithNotifications`).
+
 - `Confidential-Legal` extern teilen: Blockierung und Incident Report
-- `Confidential-Finance` extern teilen: Blockierung nach Policy
-- `General-Intern` an `pm.me` senden: Policy Tip und Alert, danach RMS-Verschlüsselung durch `Encryption`
-- `General-Intern` extern senden: RMS-Verschlüsselung
+- `Confidential-Finance` extern teilen: Blockierung
+- `Strictly-Confidential-Intern` extern teilen und extern mailen: Blockierung und Incident Report
+- `General-Intern` an eine Proton-Domain senden: Policy Tip und Alert, danach Verschlüsselung durch `Encryption`
+- `General-Intern` extern senden: Verschlüsselung mit `Encrypt`
 - `Confidential-Intern` extern senden: Blockierung
-- sensible Datei nach Google Drive hochladen: Blockierung
-- sensible Datei in eingeschränkter KI-Anwendung verarbeiten
-- externe E-Mail im Copilot-Szenario prüfen
+- sensible Datei auf einem onboardeten Gerät in eine eingeschränkte Cloud-/KI-App hochladen: Blockierung
+- sensibles Dokument mit Copilot zusammenfassen: Inhalt wird nicht verwendet
+- externe E-Mail im Copilot-Szenario: Inhalt wird nicht verwendet
+- Benutzer ohne Fachgruppe: `Confidential-Legal`, `Confidential-Finance` und `Strictly-Confidential-Intern` sind nicht auswählbar
 
 Je Testfall dokumentieren:
 
@@ -325,7 +332,9 @@ Die Exportdateien versionieren oder revisionssicher ablegen. Keine produktiven L
 | `The given key was not present in the dictionary` bei Labels | Bekannten Backend-/Löschzustand dokumentieren; Labelstatus im Portal und per `Get-Label` prüfen |
 | Publishing Policy meldet Labels nicht gefunden | Labelnamen und abgeschlossene Label-Synchronisierung prüfen |
 | Team-Policy gilt für alle Benutzer | Log unter `GroupAssignment/Set-PublishingPolicyGroups.log` prüfen und `Set-PublishingPolicyGroups.ps1 -Execute` erneut ausführen |
-| DLP-Regel existiert bereits | Bestehende Regel prüfen; nicht automatisch als aktuell betrachten |
+| `[WARN] ... weicht ab` im Log | Abweichung prüfen; mit `-Execute -UpdateExisting` auf die Definition setzen |
+| `NoRmsTemplateFound` bei der Regel `Encryption` | Vorhandene Vorlagen mit `Get-RMSTemplate` (Exchange Online) prüfen und `EncryptionTemplate` in `config/tenant.psd1` anpassen |
+| `BlockAccess action is not allowed for Applications workload` | Alter Stand der Copilot-Regeln; mit `-UpdateExisting` neu setzen (heute `RestrictAccess`) |
 | Setup stoppt nach einem Schritt | Betreffendes Log unter `Logs\Start-PurviewSetup-*` lesen; erst nach Behebung erneut starten |
 
 ## 11. Sicherheit

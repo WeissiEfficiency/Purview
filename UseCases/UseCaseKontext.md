@@ -1,98 +1,119 @@
-# Microsoft Purview Use-Case-Matrix
+# Microsoft Purview: Soll-Konfiguration und Use Cases
+
+| | |
+|---|---|
+| **Status** | Arbeitsstand, entspricht den Skripten in `Main Setup/` |
+| **Tenant** | `M365DS559840` (Werte aus `config/tenant.psd1`) |
+| **Stand** | 2026-09-27 |
+| **Änderungen** | siehe `CHANGELOG.md` |
 
 ## 1. Geltungsbereich
 
-Diese Matrix beschreibt ausschließlich die produktive Konfiguration. Testlabels mit dem Präfix `Test-` werden nicht berücksichtigt.
+Dieses Dokument beschreibt die **produktive Soll-Konfiguration**, wie sie die Skripte in `Main Setup/` anlegen bzw. mit `-UpdateExisting` herstellen. Testobjekte (Präfix `Test-` bzw. `Test `) werden nicht betrachtet.
 
 Grundlage:
 
 - `Main Setup/Create-SensitivityLabels.ps1`
-- `Main Setup/Create-PublishingPolicies.ps1`
+- `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Set-PublishingPolicyGroups.ps1`
 - `Main Setup/Create-DlpComplianceRule.ps1`
-- Tenant-Inventur vom 2026-08-28
+- `config/tenant.psd1`
+- Testkonten und Gruppen: `UseCases/Testkonten.md`
 
-## 2. Tenant-Kontext
+## 2. Gruppen
 
-| Objekt | Ergebnis |
-|---|---|
-| Benutzerobjekte | 34: 20 `UserMailbox`, 7 `User`, 6 `RoomMailbox`, 1 `DiscoveryMailbox` |
-| Microsoft-365-Gruppen | 13, darunter die private Gruppe `Leadership` |
-| Verteilergruppen | 11, darunter `Finance Team` und `Legal Team` |
-| Finance-Zielgruppe | `FinanceTeam@M365DS410216.onmicrosoft.com`, mailfähige Verteilergruppe |
-| Legal-Zielgruppe | `LegalTeam@M365DS410216.onmicrosoft.com`, mailfähige Verteilergruppe |
-| Leadership-Zielgruppe | `Leadership@m365ds410216.onmicrosoft.com`, private Microsoft-365-Gruppe |
-
-> **Behoben (28.08.2026):** Die Publishing-Policies für Finance und Legal wurden von `ModernGroupLocation` auf `ExchangeLocation` umgestellt, da beide Ziele im Tenant klassische Verteilergruppen sind. Leadership bleibt korrekt bei `ModernGroupLocation`, da bestätigte private Microsoft-365-Gruppe. Siehe `Main Setup/Create-PublishingPolicies.ps1`.
-
-## 3. Produktives Labelmodell
-
-| Label | Fachlicher Use Case | Schutzwirkung | Berechtigungen bzw. Publishing |
+| Gruppe | Typ im Tenant | Adressierung in Publishing Policies | Verwendung |
 |---|---|---|---|
-| `Public` | Informationen zur Veröffentlichung | Entfernt vorhandene Zugriffsschutz-Einstellungen | Für alle berechtigten Benutzer |
-| `General-Intern` | Allgemeine interne Kommunikation und Arbeit | Keine zusätzliche RMS-Einschränkung im Labelskript | Standardlabel für Legal, Finance und Leadership |
-| `General-Extern` | Allgemeine externe Kommunikation | Für freigegebene externe Kommunikation | Exchange-Policy für alle Benutzer |
-| `Confidential-Intern` | Vertrauliche Informationen innerhalb der Organisation | Interne Kennzeichnung | Legal, Finance und Leadership |
-| `Confidential-Extern` | Vertrauliche Informationen für zulässige externe Kommunikation | Kennzeichnung ohne feste Empfängerrechte | Exchange-Policy für alle Benutzer |
-| `Confidential-Legal` | Rechtsinformationen | RMS-Rechte für Legal Team und Leadership; Offlinezugriff nie | Legal und Leadership |
-| `Confidential-Finance` | Finanzinformationen | RMS-Rechte für Finance Team und Leadership; Offlinezugriff nie | Finance und Leadership |
-| `Strictly-Confidential-Intern` | Streng vertrauliche interne Informationen | RMS-Rechte ausschließlich für Leadership; Offlinezugriff nie | Leadership |
-| `Strictly-Confidential-Personalized` | Personalisierte streng vertrauliche Informationen | Benutzer entscheidet über Verschlüsselung und Empfängerrechte | Exchange-Policy für alle Benutzer |
+| Legal Team | mailfähige Verteilergruppe | `ExchangeLocation` | RMS-Rechte Confidential-Legal, Legal-Policy |
+| Finance Team | mailfähige Verteilergruppe | `ExchangeLocation` | RMS-Rechte Confidential-Finance, Finance-Policy |
+| Leadership | private Microsoft-365-Gruppe | `ModernGroupLocation` | RMS-Rechte Legal/Finance/Strictly-Confidential-Intern, Leadership-Policy |
 
-## 4. Publishing-Use-Cases
+Die Team-Policies werden zunächst mit `ExchangeLocation All` angelegt (New-LabelPolicy löst die Verteilergruppen nicht direkt auf) und unmittelbar danach durch `Set-PublishingPolicyGroups.ps1` auf die Gruppe eingeschränkt. Schlägt das fehl, bricht `Start-PurviewSetup.ps1` ab.
 
-| Use Case | Publishing Policy | Scope | Standardlabel und Einstellungen |
+## 3. Labelmodell und RMS-Rechte
+
+| Label | Fachlicher Use Case | Schutz (RMS) | Wer darf das Label anwenden (Publishing) |
 |---|---|---|---|
-| Vollständige Labelauswahl in Exchange | `Policy All, no Standard, No Inheritence` | Exchange: alle Benutzer | Alle 9 produktiven Labels; Downgrade-Begründung erforderlich |
-| Rechtliche E-Mails | `Legal, Intern Standard, Highest Inheritence for Mails` | Legal Team (ExchangeLocation) | `General-Intern`; Anlagenaktion automatisch; Pflichtlabel |
-| Finanzielle E-Mails | `Finance, Confidential Intern, Perdefinded but Inheritence` | Finance Team (ExchangeLocation) | `Confidential-Intern`; Anlagenaktion empfohlen; Pflichtlabel |
-| E-Mails des Führungskreises | `Leadership, Intern , Inheritence` | Leadership (ModernGroupLocation) | `General-Intern`; Anlagenaktion automatisch; Pflichtlabel |
+| `Public` | Zur Veröffentlichung freigegebene Informationen | Entfernt vorhandenen Schutz (`RemoveProtection`) | alle Benutzer |
+| `General-Intern` | Allgemeine interne Arbeit | kein RMS-Schutz | alle Benutzer |
+| `General-Extern` | Allgemeine externe Kommunikation | kein RMS-Schutz | alle Benutzer |
+| `Confidential-Intern` | Vertrauliche interne Informationen | kein RMS-Schutz; Schutz durch DLP | alle Benutzer |
+| `Confidential-Extern` | Vertrauliches für zulässige externe Empfänger | kein RMS-Schutz | alle Benutzer |
+| `Confidential-Legal` | Rechtsinformationen | Legal Team: Co-Owner; Leadership: Co-Author; Offlinezugriff nie | **nur** Legal Team und Leadership |
+| `Confidential-Finance` | Finanzinformationen | Finance Team: Co-Owner; Leadership: Co-Author; Offlinezugriff nie | **nur** Finance Team und Leadership |
+| `Strictly-Confidential-Intern` | Streng vertrauliche Geschäftsführungsinformationen | Leadership: Co-Owner; Offlinezugriff nie | **nur** Leadership |
+| `Strictly-Confidential-Personalized` | Personalisierte streng vertrauliche Informationen | Benutzer legt Empfänger und Rechte fest (`UserDefined`) | alle Benutzer |
 
-## 5. DLP-Use-Case-Matrix
+**Rechte-Voreinstellungen** (entsprechen den Purview-Vorlagen):
 
-### 5.1 SPO/ODB
+| Voreinstellung | Rechte | Bedeutung |
+|---|---|---|
+| Co-Owner | `VIEW, VIEWRIGHTSDATA, DOCEDIT, EDIT, PRINT, EXTRACT, REPLY, REPLYALL, FORWARD, EDITRIGHTSDATA, EXPORT, OBJMODEL, OWNER` | Vollzugriff inkl. Ändern/Entfernen des Schutzes |
+| Co-Author | `VIEW, VIEWRIGHTSDATA, DOCEDIT, EDIT, PRINT, EXTRACT, REPLY, REPLYALL, FORWARD, OBJMODEL` | Lesen, Bearbeiten, Drucken, Kopieren, Weiterleiten; **kein** Ändern der Rechte, **kein** Export ohne Schutz |
 
-| Use Case | Regel | Bedingung | Aktuelle Maßnahme |
+> Wer ein Dokument mit einem geschützten Label versieht, ist RMS-Aussteller und behält in der Regel Vollzugriff. Deshalb sind die Fachbereichslabels nur für die jeweiligen Gruppen veröffentlicht.
+
+## 4. Publishing Policies
+
+| Policy | Scope | Zusätzliche Labels | Standardlabel | Einstellungen |
+|---|---|---|---|---|
+| `Policy All, no Standard, No Inheritence` | alle Benutzer (`ExchangeLocation All`) | Public, General-Intern, General-Extern, Confidential-Intern, Confidential-Extern, Strictly-Confidential-Personalized | keines | Downgrade-Begründung |
+| `Legal, Intern Standard, Highest Inheritence for Mails` | Legal Team | + Confidential-Legal | General-Intern (Outlook und Dokumente) | Pflichtlabel, Anlagenaktion automatisch, Downgrade-Begründung |
+| `Finance, Confidential Intern, Perdefinded but Inheritence` | Finance Team | + Confidential-Finance | Confidential-Intern | Pflichtlabel, Anlagenaktion empfohlen, Downgrade-Begründung |
+| `Leadership, Intern , Inheritence` | Leadership | + Confidential-Legal, Confidential-Finance, Strictly-Confidential-Intern | General-Intern | Pflichtlabel, Anlagenaktion automatisch, Downgrade-Begründung |
+
+Ein Benutzer erhält die **Vereinigungsmenge** der Labels aller für ihn geltenden Policies. Die **Einstellungen** (Standardlabel, Pflichtlabel) kommen dagegen nur aus der Policy mit der höchsten Priorität. Für Mitglieder mehrerer Teams (z. B. Debra Berger: Finance und Leadership) die Reihenfolge der Policies im Portal prüfen und bewusst festlegen.
+
+## 5. DLP-Regeln
+
+Neue DLP-Policies werden im Modus `TestWithNotifications` angelegt. **Blockierungen wirken erst, wenn die Policy auf `Enable` gestellt ist.** Bis dahin gibt es nur Policy Tips und Simulationsergebnisse.
+
+### 5.1 SharePoint Online / OneDrive (`SPO ODB - Restrict Sharing Outside`)
+
+| Use Case | Regel | Bedingung | Maßnahme |
 |---|---|---|---|
-| Rechtliche Inhalte extern teilen | `Legal sharing violation with notification options` | `Confidential-Legal` und Zugriff außerhalb der Organisation | Blockieren, Portalzugriff, Alert, Incident Report und Policy Tip |
-| Personalisierte streng vertrauliche Inhalte extern teilen | `Strictly confidential personalized sharing` | `Strictly-Confidential-Personalized` und Zugriff außerhalb der Organisation | Portalzugriff, Alert und Incident Report; kein `BlockAccess` |
-| Interne Inhalte extern teilen | `No sharing outside org` | `General-Intern`, `Confidential-Intern` oder `Confidential-Finance` und Zugriff außerhalb der Organisation | Blockieren, Portalzugriff, Alert, Incident Report und Policy Tip |
+| Rechtliche Inhalte extern teilen | `Legal sharing violation with notification options` | Confidential-Legal, Zugriff außerhalb der Organisation | Blockieren, Alert, Incident Report (Admin, Site-Admin), Policy Tip |
+| Streng vertrauliche Inhalte extern teilen | `Block strictly confidential intern sharing outside org` | Strictly-Confidential-Intern, extern | Blockieren, Alert, Incident Report, Policy Tip |
+| Personalisierte Inhalte extern teilen | `Strictly confidential personalized sharing` | Strictly-Confidential-Personalized, extern | Nur Alert und Incident Report, **kein** Block (Benutzer steuert Empfänger über RMS) |
+| Interne Inhalte extern teilen | `No sharing outside org` | General-Intern, Confidential-Intern oder Confidential-Finance, extern | Blockieren, Alert, Incident Report (Site-Admin), Policy Tip |
 
-### 5.2 EXO
+### 5.2 Exchange Online (`EXO - All user - Restrict sharing outside`)
 
-| Use Case | Regel | Bedingung | Aktuelle Maßnahme |
+Reihenfolge wie angelegt; `StopPolicyProcessing` beendet die Auswertung nur, wenn die jeweilige Regel zutrifft.
+
+| Use Case | Regel | Bedingung | Maßnahme |
 |---|---|---|---|
-| Sensible E-Mail an Proton Mail | `Recipient domain is proton mail - needs approval` | Empfänger-Domain `pm.me`, `proton.me`, `protonmail.com` oder `protonmail.ch` und sensibles produktives Label | Portalzugriff, Alert und Policy Tip; die nachfolgenden EXO-Regeln greifen weiterhin |
-| `General-Intern` per E-Mail extern senden | `Encryption` | `General-Intern` und Zugriff außerhalb der Organisation | RMS-Verschlüsselung mit der Vorlage `Encrypt`, Policy-Tip-Dialog und Verarbeitung stoppen |
-| `Confidential-Intern` per E-Mail extern senden | `Block sharing of confidential internal content outside org` | `Confidential-Intern` und Zugriff außerhalb der Organisation | Blockieren, Alert, Benachrichtigung, Policy Tip und Verarbeitung stoppen |
+| Sensible E-Mail an Proton Mail | `Recipient domain is proton mail - needs approval` | Empfänger-Domain aus `ProtonDomains` und eines der produktiven Labels | Alert und Policy Tip; weitere Regeln greifen (kein Stop) |
+| `General-Intern` extern mailen | `Encryption` | General-Intern, Empfänger extern | Verschlüsselung mit Vorlage `Encrypt` (aus `config/tenant.psd1`), Policy-Tip-Dialog, Stop |
+| `Confidential-Intern` extern mailen | `Block sharing of confidential internal content outside org` | Confidential-Intern, extern | Blockieren, Alert, Benachrichtigung, Stop |
+| `Strictly-Confidential-Intern` extern mailen | `Block strictly confidential intern mail outside org` | Strictly-Confidential-Intern, extern | Blockieren, Alert, Incident Report, Stop |
 
-### 5.3 Copilot
+Confidential-Legal und Confidential-Finance haben keine eigene EXO-Regel: Sie sind RMS-geschützt, externe Empfänger können die Inhalte nicht öffnen.
 
-| Use Case | Regel | Bedingung | Aktuelle Maßnahme |
+### 5.3 Microsoft 365 Copilot (`AI -All users - Block processing`)
+
+| Use Case | Regel | Bedingung | Maßnahme |
 |---|---|---|---|
-| Sensible Inhalte durch Copilot verarbeiten | `Block labled content from beeing process Confidential Intern up` | `Confidential-Intern`, `Confidential-Extern`, `Confidential-Legal`, `Confidential-Finance` oder `Strictly-Confidential-Intern` | **Blockiert** (`BlockAccess=true`), zusätzlich Portalzugriff und Alert |
-| Externe E-Mails durch Copilot verarbeiten | `Block Mails from ourside from beeing processed` | Absender außerhalb der Organisation | **Blockiert** (`BlockAccess=true`), zusätzlich Portalzugriff und Alert |
+| Sensible Inhalte durch Copilot verarbeiten | `Block labled content from beeing process Confidential Intern up` | Confidential-Intern, -Extern, -Legal, -Finance, Strictly-Confidential-Intern | Inhalt wird von der Copilot-Verarbeitung ausgeschlossen (`RestrictAccess` = `ExcludeContentProcessing`), Alert |
+| Externe E-Mails durch Copilot verarbeiten | `Block Mails from ourside from beeing processed` | Absender außerhalb der Organisation | wie oben |
 
-> **Behoben (28.08.2026):** Beide Copilot-Regeln setzen jetzt `BlockAccess=true` und blockieren aktiv, statt nur zu warnen.
+`BlockAccess` wird für den Copilot-Workload vom Tenant abgelehnt; die Wirkung entsteht über `RestrictAccess`.
 
-### 5.4 Endpoint
+### 5.4 Endpoint (`Endpoint - All users - Restrict upload to AI Apps`)
 
-| Use Case | Regel | Bedingung | Aktuelle Maßnahme |
+| Use Case | Regel | Bedingung | Maßnahme |
 |---|---|---|---|
-| Sensible Daten zu eingeschränkten Cloud-/KI-Apps hochladen | `Sensitiv data block upload to restricted cloud apps` | Produktive vertrauliche Labels | **Blockiert** (`BlockAccess=true`), Portalzugriff und Alert |
+| Sensible Datei in eingeschränkte Cloud-/KI-App hochladen | `Sensitiv data block upload to restricted cloud apps` | Confidential-* und Strictly-Confidential-* | `BlockAccess` und Upload-Sperre (`EndpointDlpRestrictions` `CloudEgress` = Block), Alert |
 
-> **Behoben (28.08.2026):** Die widersprüchliche Zusatzbedingung `ContentIsNotLabeled=true` wurde entfernt. Die Regel prüft jetzt ausschließlich die Label-Bedingung und blockiert aktiv.
+Voraussetzungen: Geräte sind für Endpoint DLP onboardet; die eingeschränkten Domains (z. B. KI-Apps) sind in den Endpoint-DLP-Einstellungen als Dienstdomänen hinterlegt. Dateien ohne Label lösen die Regel nicht aus.
 
-### 5.5 Google Workspace
+### 5.5 Google Workspace (optional)
 
-| Use Case | Regel | Bedingung | Aktuelle Maßnahme |
-|---|---|---|---|
-| Sensible Inhalte nach Google Drive hochladen | `Block upload to google drive` | Produktive sensible Labels und Zugriff außerhalb der Organisation | Blockieren, Portalzugriff und Policy Tip |
+`Block upload to google drive` wird nur mit `-IncludeGoogleWorkspace` angelegt und wurde vom Tenant bisher abgelehnt (`ContentContainsSensitiveInformation` wird für diesen Workload nicht unterstützt). **Derzeit keine wirksame Kontrolle**; nicht in Demos als „blockiert“ zeigen.
 
-## 6. Priorisierte offene Punkte
+## 6. Offene Punkte
 
-1. ~~Finance Team und Legal Team sind Verteilergruppen, werden aber als `ModernGroupLocation` verwendet.~~ **Behoben (28.08.2026):** Publishing-Policies nutzen jetzt `ExchangeLocation` für Finance und Legal.
-2. Die Label-API meldete beim erneuten Anlegen bereits backendseitig vorhandener bzw. gelöschter Labels Fehler. Diese Fehler werden für die Use-Case-Beschreibung vorerst nicht als fachliche Abweichung bewertet.
-3. ~~Die Endpoint-Bedingung mit `ContentIsNotLabeled=true` fachlich klären.~~ **Behoben (28.08.2026):** Bedingung entfernt, Regel blockiert jetzt eindeutig anhand der Label-Bedingung.
-4. ~~Copilot-Regeln prüfen: Der Regelname spricht von Blockierung, die aktuelle Konfiguration setzt aber kein `BlockAccess`.~~ **Behoben (28.08.2026):** Beide Regeln setzen jetzt `BlockAccess=true`.
-5. RMS-Vorlage (`-EncryptionTemplate`, Standard `Encrypt`), Incident-Report-Empfänger und tatsächliche Gruppenmitglieder bestätigen.
-6. Für jeden Bereich mindestens einen Pilotbenutzer und einen Benutzer ohne Fachgruppenmitgliedschaft testen.
+1. Priorität der Publishing Policies für Mitglieder mehrerer Teams festlegen (Abschnitt 4).
+2. Ob General-Intern per E-Mail extern weiterhin verschlüsselt (lesbar für Empfänger) oder blockiert werden soll, ist noch zu entscheiden.
+3. Google-Workspace-Regel fachlich neu aufsetzen oder entfernen.
+4. RMS-Vorlage `Encrypt`, Incident-Report-Empfänger und Gruppenmitglieder im Tenant bestätigen (`UseCases/Testkonten.md`).
+5. DLP-Policies nach Auswertung der Simulation auf `Enable` stellen (Vier-Augen-Prinzip, siehe `Roadmap/Governance-LeastPrivilege-VierAugen.md`).
