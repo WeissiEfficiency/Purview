@@ -91,12 +91,16 @@ $config = Import-PurviewConfig -Path $ConfigPath
 #region PolicyDefinitions
 # GroupKey verweist auf config/tenant.psd1 (Groups); diese Policies schränkt
 # Set-PublishingPolicyGroups.ps1 nach dem Anlegen auf die Gruppe ein.
+# Die Fachbereichslabels (Confidential-Legal, Confidential-Finance,
+# Strictly-Confidential-Intern) sind bewusst NICHT in der Policy für alle
+# Benutzer enthalten, sondern nur in den Team-Policies. Benutzer erhalten die
+# Vereinigungsmenge der Labels aller Policies, die für sie gelten.
 $teamSettings = @{ mandatory = 'true'; attachmentaction = 'automatic'; requiredowngradejustification = 'true'; customurl = $config.CustomHelpUrl }
 $policies = @(
     [pscustomobject]@{
         Name     = 'Policy All, no Standard, No Inheritence'
         GroupKey = ''
-        Labels   = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Confidential-Legal', 'Confidential-Finance', 'Strictly-Confidential-Intern', 'Strictly-Confidential-Personalized')
+        Labels   = @('Public', 'General-Intern', 'General-Extern', 'Confidential-Intern', 'Confidential-Extern', 'Strictly-Confidential-Personalized')
         Settings = @{ requiredowngradejustification = 'true'; customurl = $config.CustomHelpUrl }
     }
     [pscustomobject]@{

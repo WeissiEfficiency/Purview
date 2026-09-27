@@ -78,8 +78,13 @@ $config = Import-PurviewConfig -Path $ConfigPath
 $legalIdentity      = $config.Groups.Legal.Identity
 $financeIdentity    = $config.Groups.Finance.Identity
 $leadershipIdentity = $config.Groups.Leadership.Identity
-$fullRights         = 'VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER'
-$readRights         = 'VIEW,VIEWRIGHTSDATA,OBJMODEL'
+# Rechte entsprechen den Purview-Voreinstellungen:
+#   Co-Owner  = Vollzugriff inkl. Rechteverwaltung (Fachbereich, dem das Label gehört)
+#   Co-Author = lesen, bearbeiten, drucken, kopieren, antworten, weiterleiten;
+#               kein Ändern der Rechte, kein Export ohne Schutz, kein Besitz
+#               (Leadership auf Legal-/Finance-Dokumenten)
+$coOwnerRights      = 'VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER'
+$coAuthorRights     = 'VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,OBJMODEL'
 
 # Reihenfolge ist relevant: Labelgruppen vor ihren Unterlabels.
 # ProtectionType:
@@ -97,9 +102,9 @@ $labels = @(
     [pscustomobject]@{ Kind = 'Label'; Name = 'General-Extern';                     DisplayName = 'Extern';       Tooltip = 'Allgemeine externe Belange.';                 ParentName = 'General';               FooterText = 'General Extern';                     FooterColor = '#0000FF'; ProtectionType = 'RemoveProtection'; RightsDefinitions = '' }
     [pscustomobject]@{ Kind = 'Label'; Name = 'Confidential-Intern';                DisplayName = 'Intern';       Tooltip = 'Vertrauliche interne Belange.';               ParentName = 'Confidential';          FooterText = 'Confidential Intern';                FooterColor = '#FFFF00'; ProtectionType = 'RemoveProtection'; RightsDefinitions = '' }
     [pscustomobject]@{ Kind = 'Label'; Name = 'Confidential-Extern';                DisplayName = 'Extern';       Tooltip = 'Vertrauliche externe Belange.';               ParentName = 'Confidential';          FooterText = 'Confidential Extern';                FooterColor = '#FFFF00'; ProtectionType = 'RemoveProtection'; RightsDefinitions = '' }
-    [pscustomobject]@{ Kind = 'Label'; Name = 'Confidential-Legal';                 DisplayName = 'Legal';        Tooltip = 'Vertrauliche Rechtsangelegenheiten.';         ParentName = 'Confidential';          FooterText = 'Confidential Legal';                 FooterColor = '#FFFF00'; ProtectionType = 'Template';         RightsDefinitions = "${legalIdentity}:$fullRights;${leadershipIdentity}:$readRights" }
-    [pscustomobject]@{ Kind = 'Label'; Name = 'Confidential-Finance';               DisplayName = 'Finance';      Tooltip = 'Vertrauliche Belange der Finanzabteilung.';   ParentName = 'Confidential';          FooterText = 'Confidential Finance';               FooterColor = '#FFFF00'; ProtectionType = 'Template';         RightsDefinitions = "${financeIdentity}:$fullRights;${leadershipIdentity}:$readRights" }
-    [pscustomobject]@{ Kind = 'Label'; Name = 'Strictly-Confidential-Intern';       DisplayName = 'Intern';       Tooltip = 'Streng vertrauliche interne Belange.';        ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Intern';       FooterColor = '#FF0000'; ProtectionType = 'Template';         RightsDefinitions = "${leadershipIdentity}:$fullRights" }
+    [pscustomobject]@{ Kind = 'Label'; Name = 'Confidential-Legal';                 DisplayName = 'Legal';        Tooltip = 'Vertrauliche Rechtsangelegenheiten.';         ParentName = 'Confidential';          FooterText = 'Confidential Legal';                 FooterColor = '#FFFF00'; ProtectionType = 'Template';         RightsDefinitions = "${legalIdentity}:$coOwnerRights;${leadershipIdentity}:$coAuthorRights" }
+    [pscustomobject]@{ Kind = 'Label'; Name = 'Confidential-Finance';               DisplayName = 'Finance';      Tooltip = 'Vertrauliche Belange der Finanzabteilung.';   ParentName = 'Confidential';          FooterText = 'Confidential Finance';               FooterColor = '#FFFF00'; ProtectionType = 'Template';         RightsDefinitions = "${financeIdentity}:$coOwnerRights;${leadershipIdentity}:$coAuthorRights" }
+    [pscustomobject]@{ Kind = 'Label'; Name = 'Strictly-Confidential-Intern';       DisplayName = 'Intern';       Tooltip = 'Streng vertrauliche interne Belange.';        ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Intern';       FooterColor = '#FF0000'; ProtectionType = 'Template';         RightsDefinitions = "${leadershipIdentity}:$coOwnerRights" }
     [pscustomobject]@{ Kind = 'Label'; Name = 'Strictly-Confidential-Personalized'; DisplayName = 'Personalized'; Tooltip = 'Streng vertrauliche personalisierte Belange.'; ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Personalized'; FooterColor = '#FF0000'; ProtectionType = 'UserDefined';      RightsDefinitions = '' }
 )
 

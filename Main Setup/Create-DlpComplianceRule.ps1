@@ -192,6 +192,12 @@ $rules = @(
         BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'; GenerateIncidentReport = 'SiteAdmin'
         NotifyUser = 'LastModifier'; NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'
     } }
+    # Strictly-Confidential-Intern: jede externe Freigabe blockieren (zusätzlich zum RMS-Schutz).
+    [pscustomobject]@{ Workload = 'SPO/ODB'; Name = 'Block strictly confidential intern sharing outside org'; Policy = $spoOdbPolicy; Optional = $false; Parameters = @{
+        AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels 'Strictly-Confidential-Intern'), @{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' })
+        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'; GenerateIncidentReport = @($IncidentReportRecipient, 'SiteAdmin')
+        NotifyUser = 'LastModifier'; NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'; NotifyPolicyTipCustomText = 'Strictly confidential content must not be shared outside the organization'
+    } }
     # EXO: Proton nur melden, kein StopPolicyProcessing, damit die nachfolgenden
     # Verschlüsselungs- und Blockregeln weiter greifen.
     [pscustomobject]@{ Workload = 'EXO'; Name = 'Recipient domain is proton mail - needs approval'; Policy = $exoPolicy; Optional = $false; Parameters = @{
@@ -212,6 +218,12 @@ $rules = @(
         AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' }, (New-LabelCondition -Labels 'Confidential-Intern'))
         BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'; NotifyUser = @('LastModifier', $IncidentReportRecipient)
         NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'; NotifyPolicyTipCustomText = "Don't share internal documents"; StopPolicyProcessing = $true
+    } }
+    [pscustomobject]@{ Workload = 'EXO'; Name = 'Block strictly confidential intern mail outside org'; Policy = $exoPolicy; Optional = $false; Parameters = @{
+        AdvancedRule = New-AdvancedRule @(@{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' }, (New-LabelCondition -Labels 'Strictly-Confidential-Intern'))
+        BlockAccess = $true; EnforcePortalAccess = $true; GenerateAlert = 'true'; GenerateIncidentReport = $IncidentReportRecipient
+        NotifyUser = @('LastModifier', $IncidentReportRecipient); NotifyUserType = 'Email, PolicyTip'; NotifyPolicyTipDisplayOption = 'Tip'
+        NotifyPolicyTipCustomText = 'Strictly confidential content must not be sent outside the organization'; StopPolicyProcessing = $true
     } }
     # Copilot: gekennzeichnete Inhalte und externe Mails von der Verarbeitung ausschließen.
     [pscustomobject]@{ Workload = 'Copilot'; Name = 'Block labled content from beeing process Confidential Intern up'; Policy = $copilotPolicy; Optional = $false; Parameters = @{
