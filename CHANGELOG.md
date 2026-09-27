@@ -4,6 +4,9 @@ Wesentliche Änderungen an Skripten, Konfiguration und Dokumentation. Neueste Ei
 
 ## 2026-09-27 — Phase 1: Tenant-Bereitschaft
 
+- Testlauf im Tenant: Debra Berger ist nur im Finance Team (nicht in Leadership) und damit Negativtest für Legal; MOD Administrator ist in allen drei Gruppen. `UseCases/Testkonten.md` und Verweise korrigiert.
+- RMS-Vorlagen haben lokalisierte Namen (`Encrypt` = `Verschlüsseln`); das Prüfskript erkennt das und gibt die GUID für `EncryptionTemplate` aus.
+- SharePoint-Prüfung importiert das SPO-Modul unter PowerShell 7 mit vollem Pfad (Windows PowerShell kennt die PS7-Modulordner nicht).
 - Neues Prüfskript `Presets/Test-TenantReadiness.ps1` (nur lesend): Modulversion, Gruppen aus `config/tenant.psd1` (Existenz, Typ, Mitglieder), Pilotkonten aus `UseCases/Testkonten.md`, Incident-Report-Empfänger, Azure RMS und RMS-Vorlage, SharePoint-Label-Integration. Bericht als Text und CSV unter `Logs\`.
 
 ## 2026-09-27 — Fachliche Entscheidungen und Dokumentation

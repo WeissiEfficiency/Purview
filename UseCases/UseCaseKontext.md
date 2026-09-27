@@ -61,7 +61,7 @@ Die Team-Policies werden zunächst mit `ExchangeLocation All` angelegt (New-Labe
 | `Finance, Confidential Intern, Perdefinded but Inheritence` | Finance Team | + Confidential-Finance | Confidential-Intern | Pflichtlabel, Anlagenaktion empfohlen, Downgrade-Begründung |
 | `Leadership, Intern , Inheritence` | Leadership | + Confidential-Legal, Confidential-Finance, Strictly-Confidential-Intern | General-Intern | Pflichtlabel, Anlagenaktion automatisch, Downgrade-Begründung |
 
-Ein Benutzer erhält die **Vereinigungsmenge** der Labels aller für ihn geltenden Policies. Die **Einstellungen** (Standardlabel, Pflichtlabel) kommen dagegen nur aus der Policy mit der höchsten Priorität. Für Mitglieder mehrerer Teams (z. B. Debra Berger: Finance und Leadership) die Reihenfolge der Policies im Portal prüfen und bewusst festlegen.
+Ein Benutzer erhält die **Vereinigungsmenge** der Labels aller für ihn geltenden Policies. Die **Einstellungen** (Standardlabel, Pflichtlabel) kommen dagegen nur aus der Policy mit der höchsten Priorität. Für Mitglieder mehrerer Teams (z. B. Megan Bowen: Finance und Leadership) die Reihenfolge der Policies im Portal prüfen und bewusst festlegen.
 
 ## 5. DLP-Regeln
 

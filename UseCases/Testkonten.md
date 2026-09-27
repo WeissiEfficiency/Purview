@@ -9,28 +9,28 @@
 
 Diese Datei ist die **einzige Quelle** für Testkonten und Gruppenmitgliedschaften. Andere Dokumente verweisen hierher, statt die Listen zu kopieren.
 
-> **Wichtig:** Die Gruppenmitgliedschaften stammen aus der Inventur vom 2026-08-28 im früheren Tenant `M365DS410216`. Der aktuelle Tenant ist ein Microsoft-Demo-Tenant mit denselben Standardbenutzern, die Mitgliedschaften sind aber **nicht erneut geprüft**. Vor dem Pilot mit `Presets/Get-TenantIdentityInventory.ps1` bzw. `Get-DistributionGroupMember` / `Get-UnifiedGroupLinks` bestätigen.
+> **Geprüft** am 2026-09-27 mit `Presets/Test-TenantReadiness.ps1` im Tenant `M365DS559840`. Nach Änderungen an den Gruppen das Skript erneut ausführen und diese Datei anpassen.
 
 ## 1. Pilotkonten
 
-| Rolle | Benutzer | Konto | Gruppen (Stand 2026-08-28) | Verwendung |
+| Rolle | Benutzer | Konto | Gruppen (Stand 2026-09-27) | Verwendung |
 |---|---|---|---|---|
 | Baseline-Pilot | Christie Cline | `ChristieC@M365DS559840.OnMicrosoft.com` | keine der drei Fachgruppen | Normaler Mitarbeitender ohne Fachgruppenrechte |
-| Finance-Pilot | Debra Berger | `DebraB@M365DS559840.OnMicrosoft.com` | Finance Team **und Leadership** | Confidential-Finance; beachten: hat über Leadership auch Rechte auf Confidential-Legal und Strictly-Confidential-Intern |
+| Finance-Pilot | Debra Berger | `DebraB@M365DS559840.OnMicrosoft.com` | Finance Team | Confidential-Finance; zugleich Negativtest für Confidential-Legal und Strictly-Confidential-Intern |
 | Finance-Pilot ohne Leadership | Pradeep Gupta | `PradeepG@M365DS559840.OnMicrosoft.com` | Finance Team | Negativtest „Finance ohne Legal-Rechte“ |
 | Legal-Pilot | Grady Archie | `GradyA@M365DS559840.OnMicrosoft.com` | Legal Team | Confidential-Legal |
 | Leadership-Pilot | Alex Wilber | `AlexW@M365DS559840.OnMicrosoft.com` | Leadership | Legal, Finance, Strictly-Confidential-Intern |
-| Administration | MOD Administrator | `admin@M365DS559840.onmicrosoft.com` | Leadership (und über `Add-AdminToAllDistributionGroups.ps1` ggf. alle Verteilergruppen) | Nur Konfiguration und Nachweise, **nicht** für Endbenutzertests |
+| Administration | MOD Administrator | `admin@M365DS559840.onmicrosoft.com` | Leadership, Legal Team und Finance Team (über `Add-AdminToAllDistributionGroups.ps1`) | Nur Konfiguration und Nachweise, **nicht** für Endbenutzertests |
 
-## 2. Gruppenmitglieder (Stand 2026-08-28)
+## 2. Gruppenmitglieder (Stand 2026-09-27)
 
 | Gruppe | Typ | Mitglieder |
 |---|---|---|
-| Finance Team | Verteilergruppe (`ExchangeLocation`) | Debra Berger, Pradeep Gupta, Megan Bowen, Lynne Robbins, Diego Siciliani |
-| Legal Team | Verteilergruppe (`ExchangeLocation`) | Grady Archie, Joni Sherman |
-| Leadership | private Microsoft-365-Gruppe (`ModernGroupLocation`) | MOD Administrator, Alex Wilber, Debra Berger, Patti Fernandez, Joni Sherman, Nestor Wilke, Isaiah Langer, Adele Vance, Irvin Sayers, Lee Gu, Megan Bowen, Lynne Robbins, Lidia Holloway, Miriam Graham |
+| Finance Team | Verteilergruppe (`ExchangeLocation`) | Debra Berger, Pradeep Gupta, Megan Bowen, Lynne Robbins, Diego Siciliani, MOD Administrator |
+| Legal Team | Verteilergruppe (`ExchangeLocation`) | Grady Archie, Joni Sherman, MOD Administrator |
+| Leadership | private Microsoft-365-Gruppe (`ModernGroupLocation`) | MOD Administrator, Alex Wilber, Patti Fernandez, Joni Sherman, Nestor Wilke, Isaiah Langer, Adele Vance, Irvin Sayers, Lee Gu, Megan Bowen, Lynne Robbins, Lidia Holloway, Miriam Graham |
 
-**Überschneidungen beachten:** Debra Berger, Megan Bowen und Lynne Robbins sind in Finance Team **und** Leadership; Joni Sherman ist in Legal Team **und** Leadership. Diese Konten eignen sich nicht als Negativtest für „kein Zugriff auf Legal bzw. Finance“.
+**Überschneidungen beachten:** Megan Bowen und Lynne Robbins sind in Finance Team **und** Leadership; Joni Sherman ist in Legal Team **und** Leadership; MOD Administrator ist in allen drei Gruppen. Diese Konten eignen sich nicht als Negativtest für „kein Zugriff auf Legal bzw. Finance“.
 
 ## 3. Externe Testempfänger
 

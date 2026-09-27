@@ -40,7 +40,7 @@ Es werden ausschließlich produktive Labels ohne `Test-` betrachtet.
 **Co-Owner** = `VIEW, VIEWRIGHTSDATA, DOCEDIT, EDIT, PRINT, EXTRACT, REPLY, REPLYALL, FORWARD, EDITRIGHTSDATA, EXPORT, OBJMODEL, OWNER` (Vollzugriff inkl. Rechteverwaltung).
 **Co-Author** = `VIEW, VIEWRIGHTSDATA, DOCEDIT, EDIT, PRINT, EXTRACT, REPLY, REPLYALL, FORWARD, OBJMODEL` (bearbeiten, drucken, kopieren, weiterleiten; kein Ändern der Rechte, kein Export ohne Schutz).
 
-> Mitglieder mehrerer Gruppen erhalten die Summe ihrer Rechte. Wer z. B. in Finance Team **und** Leadership ist (Debra Berger, Megan Bowen, Lynne Robbins), hat auf Confidential-Legal Co-Author-Rechte.
+> Mitglieder mehrerer Gruppen erhalten die Summe ihrer Rechte. Wer z. B. in Finance Team **und** Leadership ist (Megan Bowen, Lynne Robbins), hat auf Confidential-Legal Co-Author-Rechte.
 | `Strictly-Confidential-Personalized` | `UserDefined` | Benutzer wählt Empfänger und Schutz selbst | Abhängig von der Benutzerentscheidung |
 
 ## 2. Rechteübersicht nach Benutzerkreis

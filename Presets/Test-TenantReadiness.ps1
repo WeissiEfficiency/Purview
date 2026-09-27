@@ -168,9 +168,27 @@ try {
         Add-Check -Area 'RMS' -Check 'Get-IRMConfiguration' -Status 'WARN' -Detail $_.Exception.Message
     }
     try {
-        $templates = @(Get-RMSTemplate -ErrorAction Stop | ForEach-Object { [string]$_.Name })
-        $templateStatus = if ($templates -contains $config.EncryptionTemplate) { 'OK' } else { 'FAIL' }
-        Add-Check -Area 'RMS' -Check "Vorlage '$($config.EncryptionTemplate)'" -Status $templateStatus -Detail ("verfügbar: " + ($templates -join ', '))
+        # Die Namen der integrierten Vorlagen sind lokalisiert (z. B. 'Verschlüsseln' statt
+        # 'Encrypt'); die GUID ist sprachunabhängig und wird deshalb mit ausgegeben.
+        $templates = @(Get-RMSTemplate -ErrorAction Stop | ForEach-Object {
+                $template = $_
+                $id = foreach ($property in @('Guid', 'TemplateGuid', 'Identity')) {
+                    if ($template.PSObject.Properties[$property] -and -not [string]::IsNullOrWhiteSpace([string]$template.$property)) { [string]$template.$property; break }
+                }
+                [pscustomobject]@{ Name = [string]$template.Name; Id = [string]$id }
+            })
+        $available = 'verfügbar: ' + (($templates | ForEach-Object { '{0} [{1}]' -f $_.Name, $_.Id }) -join ', ')
+        $wanted = [string]$config.EncryptionTemplate
+        $aliases = @{ 'encrypt' = 'verschlüsseln'; 'verschlüsseln' = 'encrypt'; 'do not forward' = 'nicht weiterleiten'; 'nicht weiterleiten' = 'do not forward' }
+        $exact = @($templates | Where-Object { $_.Name -eq $wanted -or $_.Id -eq $wanted })
+        $alias = if ($aliases.ContainsKey($wanted.ToLowerInvariant())) { @($templates | Where-Object { $_.Name -eq $aliases[$wanted.ToLowerInvariant()] }) } else { @() }
+        if ($exact.Count -gt 0) {
+            Add-Check -Area 'RMS' -Check "Vorlage '$wanted'" -Status 'OK' -Detail $available
+        } elseif ($alias.Count -gt 0) {
+            Add-Check -Area 'RMS' -Check "Vorlage '$wanted'" -Status 'WARN' -Detail ("heißt in dieser Sitzung '{0}'. Sprachunabhängig in config/tenant.psd1 eintragen: EncryptionTemplate = '{1}'. {2}" -f $alias[0].Name, $alias[0].Id, $available)
+        } else {
+            Add-Check -Area 'RMS' -Check "Vorlage '$wanted'" -Status 'FAIL' -Detail $available
+        }
     } catch {
         Add-Check -Area 'RMS' -Check 'Get-RMSTemplate' -Status 'FAIL' -Detail $_.Exception.Message
     }
@@ -194,7 +212,9 @@ if ($SkipSharePoint) {
     }
     try {
         # Das SPO-Modul läuft unter PowerShell 7 nur über die Windows-PowerShell-Kompatibilität.
-        $spoImport = @{ Name = 'Microsoft.Online.SharePoint.PowerShell'; ErrorAction = 'Stop'; WarningAction = 'SilentlyContinue' }
+        # Mit vollem Pfad importieren: Windows PowerShell kennt die Modulordner von PowerShell 7 nicht.
+        $spoModule = Get-Module -ListAvailable -Name Microsoft.Online.SharePoint.PowerShell | Sort-Object Version -Descending | Select-Object -First 1
+        $spoImport = @{ Name = $spoModule.Path; ErrorAction = 'Stop'; WarningAction = 'SilentlyContinue' }
         if ($PSVersionTable.PSEdition -eq 'Core') { $spoImport.UseWindowsPowerShell = $true }
         Import-Module @spoImport
         Connect-SPOService -Url $SharePointAdminUrl -ErrorAction Stop
