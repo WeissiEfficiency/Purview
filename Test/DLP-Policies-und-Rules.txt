@@ -51,7 +51,7 @@ Status und Geltungsbereich:
 Regeln:
 - Recipient domain is proton mail - needs approval
 - Encryption
-- Disallow sharing of general internal or unlabeled content
+- Block sharing of confidential internal content outside org
 
 1.3 AI -All users - Block processing
 ------------------------------------
@@ -158,7 +158,7 @@ Zugehoerige Policy:
 EXO - All user - Restrict sharing outside
 
 Bedingungen:
-- Der Empfaenger befindet sich in der Domain "pm.me".
+- Der Empfaenger befindet sich in einer der Domains "pm.me", "proton.me", "protonmail.com" oder "protonmail.ch".
 - Der Inhalt ist mit mindestens einem der folgenden Sensitivity Labels gekennzeichnet:
   - Test-General-Intern
   - Test-General-Extern
@@ -174,7 +174,7 @@ Massnahmen:
 - Warnung erzeugen.
 - Den letzten Bearbeiter per E-Mail und Policy Tip benachrichtigen.
 - Policy Tip als Hinweis anzeigen.
-- Nach dieser Regel die weitere Policy-Verarbeitung beenden.
+- Die weitere Policy-Verarbeitung wird nicht beendet; nachfolgende Regeln greifen weiterhin.
 
 2.5 Encryption
 ---------------
@@ -186,14 +186,14 @@ Bedingungen:
 - Der Inhalt ist mit dem Sensitivity Label "Test-General-Intern" gekennzeichnet.
 
 Massnahmen:
-- Nachricht mit der RMS-Vorlage "Confidential \\ All Employees" verschluesseln.
+- Nachricht mit der RMS-Vorlage "Confidential \ All Employees" verschluesseln.
 - Zugriff auf das Purview-Portal erzwingen.
 - Warnung erzeugen.
 - Den letzten Bearbeiter per Policy Tip benachrichtigen.
 - Policy Tip als Dialog anzeigen.
 - Nach dieser Regel die weitere Policy-Verarbeitung beenden.
 
-2.6 Disallow sharing of general internal or unlabeled content
+2.6 Block sharing of confidential internal content outside org
 --------------------------------------------------------------
 Zugehoerige Policy:
 EXO - All user - Restrict sharing outside

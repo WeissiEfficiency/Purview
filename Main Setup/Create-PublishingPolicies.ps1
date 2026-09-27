@@ -116,6 +116,18 @@ if ($Execute -or $UserPrincipalName) {
 #endregion Connection
 
 #region PolicyCreation
+# Vorhandene Policies einmalig laden, statt pro Policy Get-LabelPolicy -Identity
+# aufzurufen: ein "nicht gefunden" kann dort je nach Modulversion terminierend sein.
+$existingPolicyNames = @()
+if ($Execute) {
+    try {
+        $existingPolicyNames = @(Get-LabelPolicy -ErrorAction Stop | ForEach-Object { [string]$_.Name })
+    } catch {
+        Write-Log -Level ERROR -Message "Vorhandene Publishing-Policies konnten nicht gelesen werden: $($_.Exception.Message)"
+        throw
+    }
+}
+
 # Policies einzeln prüfen, damit ein Fehler die übrigen Einträge nicht verdeckt.
 foreach ($policy in $policies) {
     $policyParams = @{
@@ -133,7 +145,7 @@ foreach ($policy in $policies) {
     }
 
     try {
-        if (Get-LabelPolicy -Identity $policy.Name -ErrorAction SilentlyContinue) {
+        if ($existingPolicyNames -contains $policy.Name) {
             Write-Log -Level WARN -Message "Publishing-Policy '$($policy.Name)' existiert bereits."
             continue
         }

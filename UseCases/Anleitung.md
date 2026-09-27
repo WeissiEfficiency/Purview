@@ -75,7 +75,7 @@ Vor der Einrichtung prüfen:
 
 ## 4. Sensitivity Labels prüfen und erstellen
 
-Das Label-Skript besitzt keinen Vorschau-Modus. Es erstellt fehlende Labels direkt und überspringt vorhandene Labels.
+Ohne `-Execute` gibt das Label-Skript nur eine Vorschau aus. Mit `-Execute` erstellt es fehlende Labels und überspringt vorhandene Labels.
 
 Die produktive Labelstruktur ist:
 
@@ -105,7 +105,8 @@ Labels erstellen oder fehlende Labels ergänzen:
 
 ```powershell
 .\Purview\Main Setup\Create-SensitivityLabels.ps1 `
-  -UserPrincipalName $upn
+  -UserPrincipalName $upn `
+  -Execute
 ```
 
 Nach dem Lauf prüfen:
@@ -192,8 +193,8 @@ Erwartete Verteilung der zehn Regeln:
 
 Vor der produktiven Erstellung prüfen:
 
-- `Confidential \\ All Employees` als RMS-Vorlage
-- Incident-Report-Empfänger
+- `Confidential \ All Employees` als RMS-Vorlage (Parameter `-EncryptionTemplate`)
+- Incident-Report-Empfänger (Parameter `-IncidentReportRecipient`, Standard `admin@M365DS559840.onmicrosoft.com`)
 - Labelnamen im Tenant
 - Google-Workspace-Anwendung
 - Endpoint-Bedingung mit `ContentIsNotLabeled=true`
@@ -226,7 +227,7 @@ Nach erfolgreicher Tenant-, Label- und Gruppenprüfung kann der zentrale Launche
 
 Der Launcher führt per Dot-Sourcing aus:
 
-1. `Create-SensitivityLabels.ps1`
+1. `Create-SensitivityLabels.ps1 -Execute`
 2. `Create-PublishingPolicies.ps1 -Execute`
 3. `Create-DlpComplianceRule.ps1 -Execute`
 
@@ -276,7 +277,7 @@ Mindestens diese Testprofile verwenden:
 
 - `Confidential-Legal` extern teilen: Blockierung und Incident Report
 - `Confidential-Finance` extern teilen: Blockierung nach Policy
-- `General-Intern` an `pm.me` senden: Policy Tip und Verarbeitung stoppen
+- `General-Intern` an `pm.me` senden: Policy Tip und Alert, danach RMS-Verschlüsselung durch `Encryption`
 - `General-Intern` extern senden: RMS-Verschlüsselung
 - `Confidential-Intern` extern senden: Blockierung
 - sensible Datei nach Google Drive hochladen: Blockierung

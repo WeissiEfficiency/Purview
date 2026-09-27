@@ -4,11 +4,16 @@
 
 .DESCRIPTION
 	Erstellt Public, die drei Labelgruppen und die zugehörigen Unterlabels.
-	Vorhandene Labels werden übersprungen. Unterlabels mit RMS-Schutz erhalten
+	Ohne -Execute wird nur eine Vorschau ausgegeben. Vorhandene Labels werden
+	übersprungen. Unterlabels mit RMS-Schutz erhalten
 	die im Skript definierten Gruppenrechte und Content-Marking-Footer.
 
 .PARAMETER UserPrincipalName
 	UPN des Kontos für die Security-and-Compliance-PowerShell-Verbindung.
+
+.PARAMETER Execute
+	Erstellt die Labels tatsächlich. Ohne diesen Schalter bleibt das Skript im
+	Vorschau-Modus und stellt keine Verbindung zum Tenant her.
 
 .PARAMETER LogPath
 	Zielordner für das Ausführungslog.
@@ -16,8 +21,10 @@
 .EXAMPLE
 	.\Create-SensitivityLabels.ps1 -UserPrincipalName admin@contoso.com
 
+.EXAMPLE
+	.\Create-SensitivityLabels.ps1 -UserPrincipalName admin@contoso.com -Execute
+
 .NOTES
-	Das Skript besitzt keinen Vorschau-Modus und erstellt fehlende Labels direkt.
 	Standard-Label-Farben werden im Purview-Portal an den Labelgruppen gesetzt;
 	Unterlabels übernehmen die Farbe ihrer Labelgruppe. Footer-Farben werden
 	separat über ApplyContentMarkingFooterFontColor konfiguriert.
@@ -28,10 +35,13 @@
 - IsLabelGroup ist ein SwitchParameter -> immer gesplattet uebergeben
   (@{IsLabelGroup = $true}), nie als "-IsLabelGroup $true" auf der Kommandozeile.
 #>
+#requires -Version 5.1
 #region Parameters
 [CmdletBinding()]
 param (
 	[string]$UserPrincipalName,
+
+	[switch]$Execute,
 
 	[ValidateNotNullOrEmpty()]
 	[string]$LogPath = (Join-Path -Path (Get-Location) -ChildPath ("Logs\Create-SensitivityLabels-{0}" -f (Get-Date -Format 'yyyyMMdd-HHmmss')))
@@ -39,6 +49,9 @@ param (
 #endregion Parameters
 
 #region Initialization
+Set-StrictMode -Version Latest
+$ErrorActionPreference = 'Stop'
+
 New-Item -ItemType Directory -Path $LogPath -Force | Out-Null
 $LogFile = Join-Path $LogPath 'Create-SensitivityLabels.log'
 #endregion Initialization
@@ -66,11 +79,28 @@ $FinanceIdentity    = 'FinanceTeam@M365DS559840.onmicrosoft.com'
 $LegalIdentity      = 'LegalTeam@M365DS559840.onmicrosoft.com'
 $LeadershipIdentity = 'Leadership@M365DS559840.onmicrosoft.com'
 
+if (-not $Execute) {
+	Write-Log -Level WARN -Message 'Vorschau-Modus: Es werden keine Labels erstellt. Für die Erstellung -Execute verwenden.'
+}
+
 # Verbindung nur herstellen, wenn die Purview-Cmdlets noch nicht verfügbar sind.
-if (-not (Get-Command New-Label -ErrorAction SilentlyContinue)) {
+if ($Execute -and -not (Get-Command New-Label -ErrorAction SilentlyContinue)) {
 	if (-not $UserPrincipalName) { $UserPrincipalName = Read-Host 'Enter the Purview administrator UPN' }
 	Write-Log -Message 'Verbindung zu Security & Compliance PowerShell wird hergestellt.'
 	Connect-IPPSSession -UserPrincipalName $UserPrincipalName -DisableWAM
+}
+
+# Vorhandene Labels einmalig laden, statt pro Label Get-Label -Identity aufzurufen:
+# ein "nicht gefunden" kann dort je nach Modulversion terminierend sein und würde
+# den Lauf unter ErrorActionPreference = 'Stop' abbrechen.
+$existingLabelNames = @()
+if ($Execute) {
+	try {
+		$existingLabelNames = @(Get-Label -ErrorAction Stop | ForEach-Object { [string]$_.Name })
+	} catch {
+		Write-Log -Level ERROR -Message "Vorhandene Labels konnten nicht gelesen werden: $($_.Exception.Message)"
+		throw
+	}
 }
 #endregion Connection
 
@@ -90,7 +120,9 @@ $publicLabel = @{
 	Confirm                            = $false
 }
 
-if (Get-Label -Identity $publicLabel.Name -ErrorAction SilentlyContinue) {
+if (-not $Execute) {
+	Write-Log -Level WARN -Message "Vorschau: Label '$($publicLabel.Name)' würde erstellt werden."
+} elseif ($existingLabelNames -contains $publicLabel.Name) {
 	Write-Log -Level WARN -Message "Label '$($publicLabel.Name)' existiert bereits."
 } else {
 	try {
@@ -111,7 +143,11 @@ $groupLabels = @(
 )
 
 foreach ($g in $groupLabels) {
-	if (Get-Label -Identity $g.Name -ErrorAction SilentlyContinue) {
+	if (-not $Execute) {
+		Write-Log -Level WARN -Message "Vorschau: Group-Label '$($g.Name)' würde erstellt werden."
+		continue
+	}
+	if ($existingLabelNames -contains $g.Name) {
 		Write-Log -Level WARN -Message "Group-Label '$($g.Name)' existiert bereits."
 		continue
 	}
@@ -142,14 +178,18 @@ $subLabels = @(
 	[pscustomobject]@{ Name = 'General-Extern';                     DisplayName = 'Extern';      Tooltip = 'Allgemeine externe Belange.';                                 ParentName = 'General';              FooterText = 'General Extern';                     FooterColor = '#0000FF'; LabelColor = '#0000FF'; ProtectionType = 'RemoveProtection' },
 	[pscustomobject]@{ Name = 'Confidential-Intern';                DisplayName = 'Intern';      Tooltip = 'Vertrauliche interne Belange.';                               ParentName = 'Confidential';         FooterText = 'Confidential Intern';                FooterColor = '#FFFF00'; LabelColor = '#FFFF00'; ProtectionType = 'RemoveProtection' },
 	[pscustomobject]@{ Name = 'Confidential-Extern';                DisplayName = 'Extern';      Tooltip = 'Vertrauliche externe Belange.';                               ParentName = 'Confidential';         FooterText = 'Confidential Extern';                FooterColor = '#FFFF00'; LabelColor = '#FFFF00'; ProtectionType = 'RemoveProtection' },
-	[pscustomobject]@{ Name = 'Confidential-Legal';                 DisplayName = 'Legal';       Tooltip = 'Vertrauliche Rechtsangelegenheiten.';                         ParentName = 'Confidential';         FooterText = 'Confidential Legal';                 FooterColor = '#FFFF00'; LabelColor = '#FFFF00'; ProtectionType = 'Template'; RightsDefinitions = "$LegalIdentity`:VIEW, VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER;$LeadershipIdentity`:VIEW,VIEWRIGHTSDATA,OBJMODEL"; OfflineAccessDays = 0 },
-	[pscustomobject]@{ Name = 'Confidential-Finance';               DisplayName = 'Finance';     Tooltip = 'Vertrauliche Belange der Finanzabteilung.';                   ParentName = 'Confidential';         FooterText = 'Confidential Finance';               FooterColor = '#FFFF00'; LabelColor = '#FFFF00'; ProtectionType = 'Template'; RightsDefinitions = "$FinanceIdentity`:VIEW, VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER;$LeadershipIdentity`:VIEW,VIEWRIGHTSDATA,OBJMODEL"; OfflineAccessDays = 0 },
-	[pscustomobject]@{ Name = 'Strictly-Confidential-Intern';       DisplayName = 'Intern';      Tooltip = 'Streng vertrauliche interne Belange.';                        ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Intern';       FooterColor = '#FF0000'; LabelColor = '#FF0000'; ProtectionType = 'Template'; RightsDefinitions = "$LeadershipIdentity`:VIEW, VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER"; OfflineAccessDays = 0 },
+	[pscustomobject]@{ Name = 'Confidential-Legal';                 DisplayName = 'Legal';       Tooltip = 'Vertrauliche Rechtsangelegenheiten.';                         ParentName = 'Confidential';         FooterText = 'Confidential Legal';                 FooterColor = '#FFFF00'; LabelColor = '#FFFF00'; ProtectionType = 'Template'; RightsDefinitions = "$LegalIdentity`:VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER;$LeadershipIdentity`:VIEW,VIEWRIGHTSDATA,OBJMODEL"; OfflineAccessDays = 0 },
+	[pscustomobject]@{ Name = 'Confidential-Finance';               DisplayName = 'Finance';     Tooltip = 'Vertrauliche Belange der Finanzabteilung.';                   ParentName = 'Confidential';         FooterText = 'Confidential Finance';               FooterColor = '#FFFF00'; LabelColor = '#FFFF00'; ProtectionType = 'Template'; RightsDefinitions = "$FinanceIdentity`:VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER;$LeadershipIdentity`:VIEW,VIEWRIGHTSDATA,OBJMODEL"; OfflineAccessDays = 0 },
+	[pscustomobject]@{ Name = 'Strictly-Confidential-Intern';       DisplayName = 'Intern';      Tooltip = 'Streng vertrauliche interne Belange.';                        ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Intern';       FooterColor = '#FF0000'; LabelColor = '#FF0000'; ProtectionType = 'Template'; RightsDefinitions = "$LeadershipIdentity`:VIEW,VIEWRIGHTSDATA,DOCEDIT,EDIT,PRINT,EXTRACT,REPLY,REPLYALL,FORWARD,EDITRIGHTSDATA,EXPORT,OBJMODEL,OWNER"; OfflineAccessDays = 0 },
 	[pscustomobject]@{ Name = 'Strictly-Confidential-Personalized'; DisplayName = 'Personalized'; Tooltip = 'Streng vertrauliche personalisierte Belange.';                ParentName = 'Strictly-Confidential'; FooterText = 'Strictly Confidential Personalized'; FooterColor = '#FF0000'; LabelColor = '#FF0000'; ProtectionType = 'UserDefined' }
 )
 
 foreach ($l in $subLabels) {
-	if (Get-Label -Identity $l.Name -ErrorAction SilentlyContinue) {
+	if (-not $Execute) {
+		Write-Log -Level WARN -Message ("Vorschau: Label '{0}' ({1}) würde unter '{2}' erstellt werden." -f $l.Name, $l.ProtectionType, $l.ParentName)
+		continue
+	}
+	if ($existingLabelNames -contains $l.Name) {
 		Write-Log -Level WARN -Message "Label '$($l.Name)' existiert bereits."
 		continue
 	}

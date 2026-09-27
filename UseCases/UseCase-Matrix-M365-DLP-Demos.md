@@ -58,8 +58,8 @@ Die Matrix basiert auf:
 |---:|---|---|---|---|---|
 | 8 | Interne E-Mail -> interner Empfänger | Projektstatus an Kollegin senden | `General-Intern` | Erlaubt | Keine externe Bedingung |
 | 9 | Interne E-Mail -> externer Empfänger | `General-Intern` an Partner senden | `General-Intern` + extern | RMS-Verschlüsselung; Policy-Tip-Dialog; weitere Verarbeitung stoppt | `Encryption` |
-| 10 | Vertrauliche E-Mail -> externer Empfänger | `Confidential-Intern` an externe Adresse senden | `Confidential-Intern` + extern | **Blockiert**, Benutzerhinweis und Alert | `Disallow sharing of general internal or unlabeled content` |
-| 11 | Sensible E-Mail -> Proton Mail | Nachricht an `user@pm.me` senden | Sensibles Label + Empfänger-Domain `pm.me` | Portalzugriff, Alert und Policy Tip; weitere Verarbeitung stoppt | `Recipient domain is proton mail - needs approval` |
+| 10 | Vertrauliche E-Mail -> externer Empfänger | `Confidential-Intern` an externe Adresse senden | `Confidential-Intern` + extern | **Blockiert**, Benutzerhinweis und Alert | `Block sharing of confidential internal content outside org` |
+| 11 | Sensible E-Mail -> Proton Mail | Nachricht an `user@pm.me` senden | Sensibles Label + Empfänger-Domain `pm.me` | Portalzugriff, Alert und Policy Tip; nachfolgende EXO-Regeln (Verschlüsselung/Blockierung) greifen weiterhin | `Recipient domain is proton mail - needs approval` |
 | 12 | Öffentliche E-Mail -> extern | Public-Information an Presse senden | `Public` | Kein Treffer der sensiblen Labelregeln | Keine passende Blockregel |
 | 13 | Allgemeine externe E-Mail | Information ohne vertraulichen Inhalt an Partner senden | `General-Extern` | Für externe Kommunikation vorgesehen; Ergebnis im Pilot bestätigen | Keine passende Blockregel |
 
@@ -121,7 +121,7 @@ Die Matrix basiert auf:
 
 1. Neue E-Mail mit einer Datei oder Nachricht mit `General-Intern` erstellen.
 2. An externe Adresse senden.
-3. Erwartung: RMS-Verschlüsselung mit `Confidential \\ All Employees`, Policy-Tip-Dialog und Stopp der weiteren Policy-Verarbeitung.
+3. Erwartung: RMS-Verschlüsselung mit `Confidential \ All Employees`, Policy-Tip-Dialog und Stopp der weiteren Policy-Verarbeitung.
 4. Prüfen, welche Empfänger die RMS-Rechte tatsächlich besitzen.
 
 ### Demo D: Confidential-Intern per E-Mail blockieren
@@ -131,7 +131,7 @@ Die Matrix basiert auf:
 1. E-Mail mit `Confidential-Intern` kennzeichnen.
 2. An externe Testadresse senden.
 3. Erwartung: Versand/Zugriff blockiert, Hinweis angezeigt, Alert erzeugt.
-4. Regel `Disallow sharing of general internal or unlabeled content` im Portal prüfen.
+4. Regel `Block sharing of confidential internal content outside org` im Portal prüfen.
 
 ### Demo E: Proton-Mail als Sonderfall
 
@@ -139,7 +139,7 @@ Die Matrix basiert auf:
 
 1. Sensible E-Mail mit einem produktiven Label erstellen.
 2. An `user@pm.me` senden.
-3. Erwartung: Policy Tip, Alert und Stopp der weiteren Verarbeitung.
+3. Erwartung: Policy Tip und Alert; zusätzlich greifen je nach Label die Regeln `Encryption` bzw. `Block sharing of confidential internal content outside org`.
 4. Mit einer anderen externen Domain vergleichen.
 
 ### Demo F: Google-Drive-Upload blockieren

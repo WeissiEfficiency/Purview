@@ -132,7 +132,7 @@ $rules = @(
         Policy     = $exoPolicy
         Parameters = @{
             AdvancedRule                 = New-AdvancedRule @(
-                @{ ConditionName = 'RecipientDomainIs'; Value = @('pm.me') },
+                @{ ConditionName = 'RecipientDomainIs'; Value = @('pm.me', 'proton.me', 'protonmail.com', 'protonmail.ch') },
                 (New-LabelCondition -Labels @('Test-General-Intern', 'Test-General-Extern', 'Test-Confidential-Intern', 'Test-Confidential-Extern', 'Test-Confidential-Legal', 'Test-Confidential-Finance', 'Test-Strictly-Confidential-Intern', 'Test-Strictly-Confidential-Personalized') -Operator Or)
             )
             EnforcePortalAccess          = $true
@@ -140,7 +140,6 @@ $rules = @(
             NotifyUser                   = 'LastModifier'
             NotifyUserType              = 'Email, PolicyTip'
             NotifyPolicyTipDisplayOption = 'Tip'
-            StopPolicyProcessing         = $true
         }
     },
     [pscustomobject]@{
@@ -152,7 +151,7 @@ $rules = @(
                 @{ ConditionName = 'AccessScope'; Value = 'NotInOrganization' },
                 (New-LabelCondition -Labels 'Test-General-Intern')
             )
-            EncryptRMSTemplate            = 'Confidential \\ All Employees'
+            EncryptRMSTemplate            = 'Confidential \ All Employees'
             EnforcePortalAccess            = $true
             GenerateAlert                  = 'true'
             NotifyUser                     = 'LastModifier'
@@ -163,7 +162,7 @@ $rules = @(
     },
     [pscustomobject]@{
         Workload   = 'EXO'
-        Name       = 'Disallow sharing of general internal or unlabeled content'
+        Name       = 'Block sharing of confidential internal content outside org'
         Policy     = $exoPolicy
         Parameters = @{
             AdvancedRule                 = New-AdvancedRule @(

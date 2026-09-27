@@ -10,17 +10,21 @@
     3. DLP-Regeln
 
     Der nächste Schritt wird erst gestartet, wenn der vorherige Schritt ohne
-    Fehler beendet wurde. Das Skript muss mit -Execute gestartet werden, da
-    das Label-Skript keinen separaten Vorschau-Modus besitzt.
+    Fehler beendet wurde. Ohne -Execute laufen alle drei Schritte im
+    Vorschau-Modus.
 
 .PARAMETER UserPrincipalName
     UPN des Kontos, das für alle drei Setup-Schritte verwendet wird.
 
 .PARAMETER Execute
-    Erforderlicher Schalter für die produktive Gesamtausführung.
+    Führt alle drei Schritte produktiv aus. Ohne diesen Schalter wird nur eine
+    Vorschau erstellt.
 
 .PARAMETER LogRoot
     Stammordner für das Orchestrierungslog und die Logs der Einzelschritte.
+
+.EXAMPLE
+    .\Start-PurviewSetup.ps1 -UserPrincipalName admin@contoso.com
 
 .EXAMPLE
     .\Start-PurviewSetup.ps1 -UserPrincipalName admin@contoso.com -Execute
@@ -54,10 +58,6 @@ foreach ($scriptPath in @($labelScript, $publishingScript, $dlpScript)) {
     if (-not (Test-Path -LiteralPath $scriptPath -PathType Leaf)) {
         throw "Erforderliches Skript nicht gefunden: $scriptPath"
     }
-}
-
-if (-not $Execute) {
-    throw 'Dieses Orchestrierungsskript benötigt -Execute. Das Label-Skript besitzt keinen Vorschau-Modus.'
 }
 #endregion Validation
 
@@ -110,26 +110,34 @@ function Invoke-DotSourcedStep {
 
 Write-OrchestrationLog -Message "Orchestrierung gestartet. UPN: $UserPrincipalName"
 Write-OrchestrationLog -Message 'Reihenfolge: Labels -> Publishing Policies -> DLP-Regeln'
+if (-not $Execute) {
+    Write-OrchestrationLog -Level WARN -Message 'Vorschau-Modus: Es werden keine Objekte erstellt. Für die Ausführung -Execute verwenden.'
+}
 
-# Labels besitzen keinen Vorschau-Modus und werden deshalb zuerst ausgeführt.
+# Labels zuerst, weil Publishing Policies und DLP-Regeln auf sie verweisen.
 Invoke-DotSourcedStep -StepName '01-Labels' -ScriptPath $labelScript -Parameters @{
     UserPrincipalName = $UserPrincipalName
+    Execute           = [bool]$Execute
     LogPath           = (Join-Path -Path $LogRoot -ChildPath '01-Labels')
 }
 
 # Publishing Policies können erst auf vorhandene Labels verweisen.
 Invoke-DotSourcedStep -StepName '02-PublishingPolicies' -ScriptPath $publishingScript -Parameters @{
     UserPrincipalName = $UserPrincipalName
-    Execute           = $true
+    Execute           = [bool]$Execute
     LogPath            = (Join-Path -Path $LogRoot -ChildPath '02-PublishingPolicies')
 }
 
 # DLP-Regeln werden zuletzt angelegt, weil sie Labels und Policies voraussetzen.
 Invoke-DotSourcedStep -StepName '03-DlpRules' -ScriptPath $dlpScript -Parameters @{
     UserPrincipalName = $UserPrincipalName
-    Execute           = $true
+    Execute           = [bool]$Execute
     LogPath            = (Join-Path -Path $LogRoot -ChildPath '03-DlpRules')
 }
 
-Write-OrchestrationLog -Level OK -Message 'Purview-Setup vollständig abgeschlossen.'
+if ($Execute) {
+    Write-OrchestrationLog -Level OK -Message 'Purview-Setup vollständig abgeschlossen.'
+} else {
+    Write-OrchestrationLog -Level OK -Message 'Vorschau vollständig abgeschlossen. Für die Ausführung -Execute verwenden.'
+}
 #endregion Execution

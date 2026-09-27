@@ -32,7 +32,7 @@ Die empfohlene Reihenfolge ist in `UseCases/Anleitung.md` im Detail beschrieben.
 .\Main Setup\Start-PurviewSetup.ps1 -UserPrincipalName admin@contoso.com -Execute
 ```
 
-Einzelne Schritte lassen sich auch separat mit den Skripten in `Main Setup/` ausführen; ohne `-Execute` laufen `Create-PublishingPolicies.ps1` und `Create-DlpComplianceRule.ps1` im reinen Vorschau-Modus. `Create-SensitivityLabels.ps1` besitzt aktuell keinen Vorschau-Modus.
+Einzelne Schritte lassen sich auch separat mit den Skripten in `Main Setup/` ausführen; ohne `-Execute` laufen alle Skripte in `Main Setup/` (einschließlich `Start-PurviewSetup.ps1`) im reinen Vorschau-Modus.
 
 ## Roadmap
 
@@ -47,7 +47,7 @@ Diese Dokumente sind reine Planungsartefakte; keine der dort beschriebenen Maßn
 ## Bekannte offene Punkte
 
 - Label-Farben lassen sich nicht zuverlässig per API setzen (Purview-Portal akzeptiert nur Paletten-Farben); Farben daher bei Bedarf manuell im Portal an den Labelgruppen setzen.
-- `Create-SensitivityLabels.ps1` besitzt im Gegensatz zu den anderen Main-Setup-Skripten keinen Vorschau-/`-Execute`-Modus.
+- `Create-DlpComplianceRule.ps1` überspringt bereits vorhandene Regeln, statt sie zu aktualisieren. Korrekturen an bereits ausgerollten Regeln (z. B. `StopPolicyProcessing` der Proton-Regel, umbenannte EXO-Regel) meldet das Skript als Warnung; sie müssen manuell nachgezogen werden.
 
 > Früher an dieser Stelle gelistete Punkte (Finance/Legal als `ModernGroupLocation`, fehlendes `BlockAccess` bei Copilot-DLP-Regeln, widersprüchliche Endpoint-Bedingung) wurden behoben — siehe Commit-Historie von `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Create-DlpComplianceRule.ps1`.
 
