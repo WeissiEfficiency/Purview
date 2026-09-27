@@ -211,19 +211,34 @@ if ($SkipSharePoint) {
         $SharePointAdminUrl = 'https://{0}-admin.sharepoint.com' -f ([string]$config.TenantName).ToLowerInvariant()
     }
     try {
-        # Das SPO-Modul läuft unter PowerShell 7 nur über die Windows-PowerShell-Kompatibilität.
         # Mit vollem Pfad importieren: Windows PowerShell kennt die Modulordner von PowerShell 7 nicht.
+        # Unter PowerShell 7 zuerst direkt laden (aktuelle Modulversionen), sonst über die
+        # Windows-PowerShell-Kompatibilität. -ModernAuth mit AuthenticationUrl vermeidet
+        # "No valid OAuth 2.0 authentication session exists".
         $spoModule = Get-Module -ListAvailable -Name Microsoft.Online.SharePoint.PowerShell | Sort-Object Version -Descending | Select-Object -First 1
-        $spoImport = @{ Name = $spoModule.Path; ErrorAction = 'Stop'; WarningAction = 'SilentlyContinue' }
-        if ($PSVersionTable.PSEdition -eq 'Core') { $spoImport.UseWindowsPowerShell = $true }
-        Import-Module @spoImport
-        Connect-SPOService -Url $SharePointAdminUrl -ErrorAction Stop
-        $spoTenant = Get-SPOTenant -ErrorAction Stop
+        $spoConnect = @{ Url = $SharePointAdminUrl; ModernAuth = $true; AuthenticationUrl = 'https://login.microsoftonline.com/organizations'; ErrorAction = 'Stop' }
+        $attempts = if ($PSVersionTable.PSEdition -eq 'Core') { @($false, $true) } else { @($false) }
+        $spoTenant = $null
+        $spoErrors = @()
+        foreach ($useWindowsPowerShell in $attempts) {
+            try {
+                Remove-Module -Name Microsoft.Online.SharePoint.PowerShell -Force -ErrorAction SilentlyContinue
+                $spoImport = @{ Name = $spoModule.Path; ErrorAction = 'Stop'; WarningAction = 'SilentlyContinue' }
+                if ($useWindowsPowerShell) { $spoImport.UseWindowsPowerShell = $true }
+                Import-Module @spoImport
+                Connect-SPOService @spoConnect
+                $spoTenant = Get-SPOTenant -ErrorAction Stop
+                break
+            } catch {
+                $spoErrors += '{0}: {1}' -f $(if ($useWindowsPowerShell) { 'Windows PowerShell' } else { 'direkt' }), $_.Exception.Message
+            }
+        }
+        if ($null -eq $spoTenant) { throw ($spoErrors -join ' | ') }
         $aipStatus = if ($spoTenant.EnableAIPIntegration) { 'OK' } else { 'FAIL' }
         Add-Check -Area 'SharePoint' -Check 'EnableAIPIntegration' -Status $aipStatus -Detail ("{0}{1}" -f $spoTenant.EnableAIPIntegration, $(if (-not $spoTenant.EnableAIPIntegration) { '; aktivieren: Set-SPOTenant -EnableAIPIntegration $true' } else { '' }))
         Disconnect-SPOService -ErrorAction SilentlyContinue
     } catch {
-        Add-Check -Area 'SharePoint' -Check 'EnableAIPIntegration' -Status 'WARN' -Detail "nicht geprüft ($SharePointAdminUrl): $($_.Exception.Message)"
+        Add-Check -Area 'SharePoint' -Check 'EnableAIPIntegration' -Status 'WARN' -Detail "nicht geprüft ($SharePointAdminUrl): $($_.Exception.Message). Alternativ im Purview-Portal: Information Protection > Sensitivity labels (Hinweis zum Aktivieren erscheint, solange die Integration aus ist)"
     }
 }
 #endregion
