@@ -113,7 +113,15 @@ Voraussetzungen: Geräte sind für Endpoint DLP onboardet; die eingeschränkten 
 ## 6. Offene Punkte
 
 1. Priorität der Publishing Policies für Mitglieder mehrerer Teams festlegen (Abschnitt 4).
-2. Ob General-Intern per E-Mail extern weiterhin verschlüsselt (lesbar für Empfänger) oder blockiert werden soll, ist noch zu entscheiden.
-3. Google-Workspace-Regel fachlich neu aufsetzen oder entfernen.
-4. RMS-Vorlage `Encrypt`, Incident-Report-Empfänger und Gruppenmitglieder im Tenant bestätigen (`UseCases/Testkonten.md`).
-5. DLP-Policies nach Auswertung der Simulation auf `Enable` stellen (Vier-Augen-Prinzip, siehe `Roadmap/Governance-LeastPrivilege-VierAugen.md`).
+2. Google-Workspace-Regel fachlich neu aufsetzen oder entfernen.
+3. RMS-Vorlage `Encrypt`, Incident-Report-Empfänger und Gruppenmitglieder im Tenant bestätigen (`UseCases/Testkonten.md`).
+4. DLP-Policies nach Auswertung der Simulation auf `Enable` stellen (Vier-Augen-Prinzip, siehe `Roadmap/Governance-LeastPrivilege-VierAugen.md`).
+
+## 7. Getroffene Entscheidungen
+
+| Datum | Entscheidung |
+|---|---|
+| 2026-09-27 | Fachbereichslabels (Legal, Finance, Strictly-Confidential-Intern) werden nur an die jeweiligen Gruppen veröffentlicht. |
+| 2026-09-27 | Strictly-Confidential-Intern wird bei externer Weitergabe (SharePoint/OneDrive und E-Mail) per DLP blockiert. |
+| 2026-09-27 | Leadership darf Legal- und Finance-Dokumente bearbeiten (Co-Author), aber keine Berechtigungen ändern. |
+| 2026-09-27 | General-Intern per E-Mail an externe Empfänger wird weiterhin verschlüsselt (Vorlage `Encrypt`, für den Empfänger lesbar) und nicht blockiert. In SharePoint/OneDrive bleibt die externe Freigabe blockiert. |

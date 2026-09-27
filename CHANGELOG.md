@@ -9,6 +9,7 @@ Wesentliche Änderungen an Skripten, Konfiguration und Dokumentation. Neueste Ei
 - Die Fachbereichslabels `Confidential-Legal`, `Confidential-Finance` und `Strictly-Confidential-Intern` sind nicht mehr in `Policy All` enthalten, sondern nur noch in den Team-Policies. Vorhandene Tenants werden mit `-UpdateExisting` angeglichen.
 - Neue DLP-Regeln blockieren die externe Weitergabe von `Strictly-Confidential-Intern`: `Block strictly confidential intern sharing outside org` (SharePoint/OneDrive) und `Block strictly confidential intern mail outside org` (Exchange).
 - Leadership erhält auf `Confidential-Legal` und `Confidential-Finance` Co-Author-Rechte (bearbeiten) statt nur Leserechte. Bestehende Labels werden mit `-UpdateExisting` angepasst.
+- Bestätigt: `General-Intern` per E-Mail an Externe wird weiterhin verschlüsselt, nicht blockiert (Entscheidungen in `UseCases/UseCaseKontext.md`, Abschnitt 7).
 
 **Dokumentation**
 
