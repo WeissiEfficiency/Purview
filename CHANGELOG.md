@@ -2,6 +2,16 @@
 
 Wesentliche Änderungen an Skripten, Konfiguration und Dokumentation. Neueste Einträge oben.
 
+## 2026-09-28 — Erweiterung des Purview-Umfangs
+
+- `Roadmap/Purview-Funktionsumfang.md`: alle Purview-Lösungen mit Status im Repository, Lizenzorientierung, offenen Entscheidungen und nächsten Ausbaustufen.
+- DLP für sensible Daten ohne Label: neue Policy `Sensitive data - All workloads - Restrict sharing outside` (Exchange, SharePoint, OneDrive, Teams) mit Block ab 10 Treffern und Warnung darunter; Informationstypen in `config/tenant.psd1` (`SensitiveInfoTypes`), Prüfung gegen `Get-DlpSensitiveInformationType` inkl. GUID-Unterstützung für lokalisierte Namen.
+- Neues Skript `Main Setup/Create-AutoLabelingPolicies.ps1`: dienstseitiges Auto-Labeling für Exchange, SharePoint und OneDrive, immer als Simulation.
+- Neues Skript `Main Setup/Create-RetentionPolicies.ps1`: getrennte Aufbewahrungsrichtlinien für Exchange, SharePoint/OneDrive, Teams-Chats, Teams-Kanäle und Copilot; nur `Keep`, deaktiviert bis zur Freigabe (`Retention.Enabled`).
+- `Start-PurviewSetup.ps1` führt beide neuen Schritte aus; Test-Wrapper `Test/Create-TestAutoLabelingPolicies.ps1` und `Test/Create-TestRetentionPolicies.ps1`.
+- `Remove-AllPurviewLabelsAndPolicies.ps1` entfernt auch Auto-Labeling-Policies (Aufbewahrung bewusst nicht).
+- `Test-TenantReadiness.ps1` prüft das einheitliche Überwachungsprotokoll.
+
 ## 2026-09-27 — Phase 1: Tenant-Bereitschaft
 
 - Testlauf im Tenant: Debra Berger ist nur im Finance Team (nicht in Leadership) und damit Negativtest für Legal; MOD Administrator ist in allen drei Gruppen. `UseCases/Testkonten.md` und Verweise korrigiert.
@@ -17,7 +27,7 @@ Wesentliche Änderungen an Skripten, Konfiguration und Dokumentation. Neueste Ei
 - Die Fachbereichslabels `Confidential-Legal`, `Confidential-Finance` und `Strictly-Confidential-Intern` sind nicht mehr in `Policy All` enthalten, sondern nur noch in den Team-Policies. Vorhandene Tenants werden mit `-UpdateExisting` angeglichen.
 - Neue DLP-Regeln blockieren die externe Weitergabe von `Strictly-Confidential-Intern`: `Block strictly confidential intern sharing outside org` (SharePoint/OneDrive) und `Block strictly confidential intern mail outside org` (Exchange).
 - Leadership erhält auf `Confidential-Legal` und `Confidential-Finance` Co-Author-Rechte (bearbeiten) statt nur Leserechte. Bestehende Labels werden mit `-UpdateExisting` angepasst.
-- Bestätigt: `General-Intern` per E-Mail an Externe wird weiterhin verschlüsselt, nicht blockiert (Entscheidungen in `UseCases/UseCaseKontext.md`, Abschnitt 7).
+- Bestätigt: `General-Intern` per E-Mail an Externe wird weiterhin verschlüsselt, nicht blockiert (Entscheidungen in `UseCases/UseCaseKontext.md`, Abschnitt „Getroffene Entscheidungen“).
 
 **Dokumentation**
 

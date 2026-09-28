@@ -16,6 +16,8 @@ Grundlage:
 - `Main Setup/Create-SensitivityLabels.ps1`
 - `Main Setup/Create-PublishingPolicies.ps1` und `Main Setup/Set-PublishingPolicyGroups.ps1`
 - `Main Setup/Create-DlpComplianceRule.ps1`
+- `Main Setup/Create-AutoLabelingPolicies.ps1`
+- `Main Setup/Create-RetentionPolicies.ps1`
 - `config/tenant.psd1`
 - Testkonten und Gruppen: `UseCases/Testkonten.md`
 
@@ -106,18 +108,42 @@ Confidential-Legal und Confidential-Finance haben keine eigene EXO-Regel: Sie si
 
 Voraussetzungen: Geräte sind für Endpoint DLP onboardet; die eingeschränkten Domains (z. B. KI-Apps) sind in den Endpoint-DLP-Einstellungen als Dienstdomänen hinterlegt. Dateien ohne Label lösen die Regel nicht aus.
 
-### 5.5 Google Workspace (optional)
+### 5.5 Sensible Daten ohne Label (`Sensitive data - All workloads - Restrict sharing outside`)
+
+Exchange, SharePoint, OneDrive und Teams. Informationstypen aus `SensitiveInfoTypes` in `config/tenant.psd1` (Kreditkarte, IBAN, deutscher Personalausweis, Reisepass, Steuer-ID).
+
+| Use Case | Regel | Bedingung | Maßnahme |
+|---|---|---|---|
+| Viele sensible Daten extern weitergeben | `Sensitive data high volume outside org` | ab `SensitiveInfoBlockThreshold` (10) Treffern eines Typs, extern | Blockieren, Alert und Incident Report, Policy Tip, Schweregrad Hoch |
+| Einzelne sensible Daten extern weitergeben | `Sensitive data low volume outside org` | 1 bis 9 Treffer, extern | Policy Tip und Alert, kein Block |
+
+### 5.6 Google Workspace (optional)
 
 `Block upload to google drive` wird nur mit `-IncludeGoogleWorkspace` angelegt und wurde vom Tenant bisher abgelehnt (`ContentContainsSensitiveInformation` wird für diesen Workload nicht unterstützt). **Derzeit keine wirksame Kontrolle**; nicht in Demos als „blockiert“ zeigen.
 
-## 6. Offene Punkte
+## 6. Auto-Labeling und Aufbewahrung
+
+| Bereich | Objekt | Soll | Hinweis |
+|---|---|---|---|
+| Auto-Labeling | `Auto - Sensitive data - Confidential-Intern` | Exchange, SharePoint, OneDrive; Informationstypen wie 5.5; Label aus `AutoLabeling.Label` | immer Simulation (`TestWithoutNotifications`), überschreibt keine manuellen Labels; Einschalten im Portal nach Auswertung |
+| Aufbewahrung | `Retention - Exchange - Keep` | alle Postfächer, 3650 Tage | nur aufbewahren (`Keep`), nie löschen |
+| | `Retention - SharePoint OneDrive - Keep` | alle Sites und OneDrive, 3650 Tage | |
+| | `Retention - Teams chats - Keep` | Teams-Chats, 365 Tage | |
+| | `Retention - Teams channels - Keep` | Teams-Kanäle, 365 Tage | |
+| | `Retention - Copilot interactions - Keep` | Copilot-Interaktionen, 365 Tage | App-Retention (Preview) |
+
+Aufbewahrungsrichtlinien sind deaktiviert, solange `Retention.Enabled = $false` in `config/tenant.psd1` steht. Einordnung aller Purview-Lösungen: `Roadmap/Purview-Funktionsumfang.md`.
+
+## 7. Offene Punkte
 
 1. Priorität der Publishing Policies für Mitglieder mehrerer Teams festlegen (Abschnitt 4).
 2. Google-Workspace-Regel fachlich neu aufsetzen oder entfernen.
 3. ~~RMS-Vorlage `Encrypt`, Incident-Report-Empfänger und Gruppenmitglieder im Tenant bestätigen~~ – erledigt am 2026-09-27 mit `Presets/Test-TenantReadiness.ps1` (Vorlage als GUID in `config/tenant.psd1`). Offen: SharePoint-Label-Integration und Endpoint-Onboarding.
 4. DLP-Policies nach Auswertung der Simulation auf `Enable` stellen (Vier-Augen-Prinzip, siehe `Roadmap/Governance-LeastPrivilege-VierAugen.md`).
+5. Aufbewahrungsdauer je Kanal festlegen und `Retention.Enabled` nach Freigabe durch Datenschutz und Betriebsrat auf `$true` setzen.
+6. Auto-Labeling-Simulation auswerten; Schwelle `SensitiveInfoBlockThreshold` und Label je Informationstyp prüfen.
 
-## 7. Getroffene Entscheidungen
+## 8. Getroffene Entscheidungen
 
 | Datum | Entscheidung |
 |---|---|

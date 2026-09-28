@@ -7,7 +7,7 @@
     PowerShellVersion = '5.1'
     FunctionsToExport = @(
         'Initialize-PurviewLog', 'Write-PurviewLog', 'Import-PurviewConfig', 'Connect-PurviewSession',
-        'Resolve-PurviewLabelId', 'Get-PurviewLabelNameMap', 'Get-PurviewPolicySetting',
+        'Resolve-PurviewLabelId', 'Get-PurviewLabelNameMap', 'Get-PurviewPolicySetting', 'Resolve-PurviewSensitiveInfoType',
         'ConvertTo-PurviewComparableValue', 'Compare-PurviewDesiredState', 'Format-PurviewDrift'
     )
     CmdletsToExport   = @()

@@ -3,10 +3,12 @@
     Erstellt bzw. gleicht die Purview-Konfiguration in fester Reihenfolge ab.
 
 .DESCRIPTION
-    Führt die drei Setup-Skripte per Dot-Sourcing nacheinander aus:
+    Führt die Setup-Skripte per Dot-Sourcing nacheinander aus:
     1. Sensitivity Labels
     2. Publishing Policies (inkl. Gruppenzuordnung)
-    3. DLP-Policies und -Regeln
+    3. DLP-Policies und -Regeln (mit Label und für sensible Daten ohne Label)
+    4. Auto-Labeling-Policies (immer als Simulation)
+    5. Aufbewahrungsrichtlinien (deaktiviert, solange Retention.Enabled = $false)
 
     Der nächste Schritt startet erst, wenn der vorherige ohne ERROR im Log
     beendet wurde. Ohne -Execute laufen alle Schritte im Vorschau-Modus; mit UPN
@@ -20,7 +22,7 @@
     Führt alle Schritte produktiv aus. Ohne diesen Schalter nur Vorschau.
 
 .PARAMETER UpdateExisting
-    Gleicht vorhandene Labels, Publishing Policies und DLP-Regeln an die
+    Gleicht vorhandene Labels, Policies und Regeln an die
     Definition an (mit -Execute). Ohne diesen Schalter werden Abweichungen nur
     gemeldet.
 
@@ -69,6 +71,8 @@ $steps = @(
     [pscustomobject]@{ Name = '01-Labels';             Script = 'Create-SensitivityLabels.ps1' }
     [pscustomobject]@{ Name = '02-PublishingPolicies'; Script = 'Create-PublishingPolicies.ps1' }
     [pscustomobject]@{ Name = '03-DlpRules';           Script = 'Create-DlpComplianceRule.ps1' }
+    [pscustomobject]@{ Name = '04-AutoLabeling';       Script = 'Create-AutoLabelingPolicies.ps1' }
+    [pscustomobject]@{ Name = '05-Retention';          Script = 'Create-RetentionPolicies.ps1' }
 )
 foreach ($step in $steps) {
     $step | Add-Member -NotePropertyName Path -NotePropertyValue (Join-Path -Path $PSScriptRoot -ChildPath $step.Script)
@@ -111,7 +115,7 @@ function Invoke-DotSourcedStep {
 }
 
 Write-PurviewLog "Orchestrierung gestartet. UPN: $UserPrincipalName"
-Write-PurviewLog 'Reihenfolge: Labels -> Publishing Policies -> DLP-Regeln'
+Write-PurviewLog 'Reihenfolge: Labels -> Publishing Policies -> DLP-Regeln -> Auto-Labeling -> Aufbewahrung'
 if (-not $Execute) {
     Write-PurviewLog -Level WARN 'Vorschau-Modus: Es werden keine Objekte erstellt oder geändert. Für die Ausführung -Execute verwenden.'
 }

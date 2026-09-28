@@ -74,7 +74,7 @@ Vor der Einrichtung prüfen, dass die Gruppen aus `config/tenant.psd1` im Tenant
 
 Gruppenmitglieder und Testkonten: `UseCases/Testkonten.md`.
 
-Diese Punkte prüft `Test-TenantReadiness.ps1` in einem Lauf, **ohne etwas zu ändern**: Modulversion, Gruppen (Existenz, Typ, Mitglieder), Pilotkonten aus `UseCases/Testkonten.md` samt Gruppenzugehörigkeit, Incident-Report-Empfänger, Azure RMS und RMS-Vorlage sowie – falls das Modul `Microsoft.Online.SharePoint.PowerShell` installiert ist – die Label-Integration für SharePoint/OneDrive (`EnableAIPIntegration`).
+Diese Punkte prüft `Test-TenantReadiness.ps1` in einem Lauf, **ohne etwas zu ändern**: Modulversion, Gruppen (Existenz, Typ, Mitglieder), Pilotkonten aus `UseCases/Testkonten.md` samt Gruppenzugehörigkeit, Incident-Report-Empfänger, einheitliches Überwachungsprotokoll, Azure RMS und RMS-Vorlage sowie – falls das Modul `Microsoft.Online.SharePoint.PowerShell` installiert ist – die Label-Integration für SharePoint/OneDrive (`EnableAIPIntegration`).
 
 ```powershell
 .\Purview\Presets\Test-TenantReadiness.ps1 `
@@ -250,7 +250,11 @@ Der Launcher führt per Dot-Sourcing aus:
 
 1. `Create-SensitivityLabels.ps1`
 2. `Create-PublishingPolicies.ps1` (inkl. `Set-PublishingPolicyGroups.ps1`)
-3. `Create-DlpComplianceRule.ps1`
+3. `Create-DlpComplianceRule.ps1` (inkl. Policy für sensible Daten ohne Label)
+4. `Create-AutoLabelingPolicies.ps1` (neue Policies immer als Simulation)
+5. `Create-RetentionPolicies.ps1` (deaktiviert, solange `Retention.Enabled = $false`)
+
+Die Vorschau mit UPN prüft auch, ob die Informationstypen aus `SensitiveInfoTypes` im Tenant existieren. Sind die Namen lokalisiert (deutschsprachige Sitzung), meldet sie ERROR; dann die GUIDs aus `Get-DlpSensitiveInformationType | Select-Object Name, Id` in `config\tenant.psd1` eintragen.
 
 Der nächste Schritt startet erst, wenn der vorherige Schritt beendet wurde. Die Logs liegen unter:
 
@@ -259,6 +263,8 @@ Logs\Start-PurviewSetup-<Zeitstempel>\
   01-Labels\
   02-PublishingPolicies\
   03-DlpRules\
+  04-AutoLabeling\
+  05-Retention\
 ```
 
 Der Launcher prüft die Logs der Einzelschritte auf `[ERROR]` und stoppt bei protokollierten Fehlern.

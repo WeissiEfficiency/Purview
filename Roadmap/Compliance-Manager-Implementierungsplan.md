@@ -20,10 +20,10 @@ Diese sechs Actions werden von Microsoft automatisiert geprüft und liefern derz
 
 | Action | Solution | Regulierungen | Punkte | Grund für Fehlschlag (vermutet) |
 |---|---|---|---|---|
-| Create and apply a retention policy | Data lifecycle management | Data Protection Baseline, AI Baseline, EU GDPR, EU AI Act | 0/108 | Keine Retention-Policy im Tenant vorhanden |
-| Automatically apply sensitivity labels to relevant sites and applications | Information protection | Data Protection Baseline, ISO 27001:2022 | 0/54 | Nur manuelle Publishing Policies, keine Auto-Labeling-Policy |
+| Create and apply a retention policy | Data lifecycle management | Data Protection Baseline, AI Baseline, EU GDPR, EU AI Act | 0/108 | Keine Retention-Policy im Tenant vorhanden. **Seit 2026-09-28 vorbereitet:** `Create-RetentionPolicies.ps1` (deaktiviert bis zur Freigabe) |
+| Automatically apply sensitivity labels to relevant sites and applications | Information protection | Data Protection Baseline, ISO 27001:2022 | 0/54 | Nur manuelle Publishing Policies. **Seit 2026-09-28:** `Create-AutoLabelingPolicies.ps1` (Simulation) |
 | Retain data using event-driven records management | Data lifecycle management | Data Protection Baseline, ISO 27001:2022 | 0/54 | Kein Records-Management-Modul konfiguriert |
-| Implement separate retention policies for different communication channels | Data lifecycle management | AI Baseline, EU AI Act | 0/18 | Keine kanalspezifischen Retention-Policies (Teams, Exchange, Viva Engage getrennt) |
+| Implement separate retention policies for different communication channels | Data lifecycle management | AI Baseline, EU AI Act | 0/18 | Keine kanalspezifischen Retention-Policies. **Seit 2026-09-28 vorbereitet:** je eine Policy für Exchange, SPO/ODB, Teams-Chats, Teams-Kanäle, Copilot (Viva Engage fehlt noch) |
 | Prevent sensitive data from being inserted in AI applications | Data loss prevention | AI Baseline, EU AI Act | 0/18 | Zum Exportzeitpunkt nur `BlockAccess` an der Endpoint-Regel; inzwischen um die Upload-Sperre `CloudEgress` und Copilot-`RestrictAccess` erweitert. Nach dem nächsten Lauf erneut bewerten; zusätzlich DSPM for AI prüfen |
 | View your sensitive data natively | Information protection | Data Protection Baseline, EU GDPR | 0/2 | Content Explorer / Data Explorer nicht aktiviert bzw. keine Berechtigung zugewiesen |
 
@@ -43,7 +43,7 @@ Diese Actions werden manuell bewertet (kein Automatiktest), tragen aber hohe Pun
 | Enforce email encryption | Microsoft Information Protection | 0/54 | Teilweise durch `Encryption`-DLP-Regel abgedeckt, aber nicht als eigenständige Policy |
 | Implement file encryption | Microsoft Purview Compliance Manager | 0/54 | Teilweise durch RMS-Templates in `Create-SensitivityLabels.ps1` abgedeckt |
 | Retain operational compliance supporting documentation | Data lifecycle management | 0/81 | Neuer Bereich |
-| Create customized DLP policies for personally identifiable information (PII) | Data loss prevention | 0/54 | Erweiterung von `Create-DlpComplianceRule.ps1` um PII-spezifische SITs |
+| Create customized DLP policies for personally identifiable information (PII) | Data loss prevention | 0/54 | **Seit 2026-09-28:** Policy `Sensitive data - All workloads - Restrict sharing outside` (Simulation) |
 | Onboard devices for data loss prevention services | Data loss prevention | 0/54 | Neuer Bereich (Endpoint-Onboarding, kein PowerShell-Skript vorhanden); Voraussetzung für die Endpoint-DLP-Regel |
 
 ## 4. Priorität 3 — Mittlere Punktzahl, neue Solution-Bereiche

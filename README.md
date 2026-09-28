@@ -6,8 +6,8 @@ Automatisierungsskripte, Use-Case-Dokumentation und Demo-Material für ein produ
 
 | Ordner | Zweck |
 |---|---|
-| `Main Setup/` | Produktionsskripte zum Erstellen und Abgleichen von Sensitivity Labels, Publishing Policies (inkl. Gruppenzuordnung) und DLP-Regeln sowie ein Orchestrierungsskript |
-| `config/` | `tenant.psd1`: alle tenant-spezifischen Werte (Gruppen, Incident-Empfänger, RMS-Vorlage, Proton-Domains) |
+| `Main Setup/` | Produktionsskripte zum Erstellen und Abgleichen von Sensitivity Labels, Publishing Policies (inkl. Gruppenzuordnung), DLP-Regeln (mit Label und für sensible Daten ohne Label), Auto-Labeling-Policies (Simulation) und Aufbewahrungsrichtlinien sowie ein Orchestrierungsskript |
+| `config/` | `tenant.psd1`: alle tenant-spezifischen Werte (Gruppen, Incident-Empfänger, RMS-Vorlage, Proton-Domains, Informationstypen, Auto-Labeling, Aufbewahrung) |
 | `Modules/PurviewSetup/` | Gemeinsames Modul für Logging, Verbindung, Konfiguration und Soll/Ist-Vergleich |
 | `Presets/` | Wiederverwendbare Automatisierungen: Tenant-Bereitschaft prüfen (nur lesend), Admin zu Verteilergruppen hinzufügen, Tenant-Identitäten inventarisieren, Purview-Konfiguration vollständig zurücksetzen |
 | `Test/` | Testvarianten der Setup-Skripte (rufen die Skripte in `Main Setup/` mit Präfix `Test-` für Labels und `Test ` für Policies/Regeln auf) sowie Export-/Abfrage-Skripte |
@@ -59,8 +59,9 @@ Tenant-spezifische Werte stehen ausschließlich in `config/tenant.psd1`. Bei ein
 
 ## Roadmap
 
-Im Ordner `Roadmap/` liegen vier Planungsdokumente:
+Im Ordner `Roadmap/` liegen fünf Planungsdokumente:
 
+- `Purview-Funktionsumfang.md` — alle Purview-Lösungen mit Status im Repository, Lizenzorientierung und nächsten Ausbaustufen
 - `ISO27001-Purview-Gesamtkonzept.md` — Zielarchitektur mit Label-/DLP-Baseline, Governance-Rollenmodell, PIM-Konzeption sowie technischen und rechtlichen Voraussetzungen (u. a. Betriebsrat, DSGVO)
 - `Governance-LeastPrivilege-VierAugen.md` — Least Privilege und Vier-Augen-Prinzip je Purview-Lösung
 - `Compliance-Manager-Implementierungsplan.md` — Priorisierung offener Compliance-Manager-Improvement-Actions

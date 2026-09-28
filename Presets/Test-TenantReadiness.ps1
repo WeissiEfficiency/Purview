@@ -7,7 +7,7 @@
       1. Version des Moduls ExchangeOnlineManagement (mind. 3.7 für -DisableWAM)
       2. Gruppen aus config/tenant.psd1: vorhanden, erwarteter Typ, Mitglieder
       3. Pilotkonten aus UseCases/Testkonten.md: vorhanden und Gruppenmitgliedschaften
-      4. Incident-Report-Empfänger vorhanden
+      4. Incident-Report-Empfänger vorhanden, einheitliches Überwachungsprotokoll aktiv
       5. RMS-Vorlage (EncryptionTemplate) vorhanden, Azure RMS aktiv
       6. Sensitivity-Label-Integration für SharePoint/OneDrive (EnableAIPIntegration),
          sofern das SharePoint-Online-Modul installiert ist
@@ -156,6 +156,19 @@ try {
         Add-Check -Area 'DLP' -Check 'IncidentReportRecipient' -Status 'OK' -Detail "$($incident.DisplayName) ($($incident.RecipientTypeDetails))"
     } catch {
         Add-Check -Area 'DLP' -Check 'IncidentReportRecipient' -Status 'FAIL' -Detail "$($config.IncidentReportRecipient) nicht gefunden"
+    }
+    #endregion
+
+    #region 4b Audit
+    # DLP-Alerts, Activity Explorer und Simulationsergebnisse setzen das
+    # einheitliche Überwachungsprotokoll voraus.
+    try {
+        $audit = Get-AdminAuditLogConfig -ErrorAction Stop
+        $auditStatus = if ($audit.UnifiedAuditLogIngestionEnabled) { 'OK' } else { 'FAIL' }
+        $auditHint = if ($audit.UnifiedAuditLogIngestionEnabled) { '' } else { '; aktivieren: Set-AdminAuditLogConfig -UnifiedAuditLogIngestionEnabled $true' }
+        Add-Check -Area 'Audit' -Check 'UnifiedAuditLogIngestionEnabled' -Status $auditStatus -Detail ("{0}{1}" -f $audit.UnifiedAuditLogIngestionEnabled, $auditHint)
+    } catch {
+        Add-Check -Area 'Audit' -Check 'Get-AdminAuditLogConfig' -Status 'WARN' -Detail $_.Exception.Message
     }
     #endregion
 

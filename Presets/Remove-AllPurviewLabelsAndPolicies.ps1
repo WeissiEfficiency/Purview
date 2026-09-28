@@ -1,16 +1,18 @@
 ﻿#requires -Version 5.1
 <#
 .SYNOPSIS
-    Entfernt tenantweit Purview DLP-Policies, Sensitivity-Label-Publishing-Policies
-    und anschließend alle über Security & Compliance PowerShell verwaltbaren
-    Sensitivity Labels.
+    Entfernt tenantweit Purview DLP-Policies, Auto-Labeling-Policies,
+    Sensitivity-Label-Publishing-Policies und anschließend alle über Security &
+    Compliance PowerShell verwaltbaren Sensitivity Labels.
+    Aufbewahrungsrichtlinien werden bewusst nicht entfernt.
 
 .DESCRIPTION
     Hochdestruktives Cleanup-Skript mit folgenden Schutzmaßnahmen:
     - Standardmäßig nur Inventarisierung, keine Löschung.
     - Für die Löschung sind -Execute und eine exakte Bestätigungsphrase erforderlich.
     - Vorheriger Export der gefundenen Objekte als CLIXML, JSON und CSV.
-    - Abhängigkeitsgerechte Reihenfolge: DLP-Policies -> Publishing-Policies -> Labels.
+    - Abhängigkeitsgerechte Reihenfolge: DLP-Policies -> Auto-Labeling-Policies ->
+      Publishing-Policies -> Labels.
     - Wiederholungsversuche und abschließende Verifikation.
 
     Hinweis: Das Entfernen einer Labeldefinition entfernt das Label nicht aus bereits
@@ -190,6 +192,7 @@ try {
 
     $requiredCommands = @(
         'Get-DlpCompliancePolicy', 'Remove-DlpCompliancePolicy',
+        'Get-AutoSensitivityLabelPolicy', 'Remove-AutoSensitivityLabelPolicy',
         'Get-LabelPolicy', 'Remove-LabelPolicy',
         'Get-Label', 'Remove-Label'
     )
@@ -204,14 +207,16 @@ try {
     Write-Log -Message "Backup- und Protokollpfad: $BackupPath"
 
     $dlpPolicies   = @(Get-DlpCompliancePolicy -ErrorAction Stop)
+    $autoPolicies  = @(Get-AutoSensitivityLabelPolicy -ErrorAction Stop)
     $labelPolicies = @(Get-LabelPolicy -ErrorAction Stop)
     $labels        = @(Get-Label -ErrorAction Stop)
 
     Export-Inventory -BaseName 'DlpCompliancePolicies' -InputObjects $dlpPolicies
+    Export-Inventory -BaseName 'AutoLabelingPolicies' -InputObjects $autoPolicies
     Export-Inventory -BaseName 'LabelPublishingPolicies' -InputObjects $labelPolicies
     Export-Inventory -BaseName 'SensitivityLabels' -InputObjects $labels
 
-    Write-Log -Message ("Inventar: {0} DLP-Policies, {1} Publishing-Policies, {2} Sensitivity Labels." -f $dlpPolicies.Count, $labelPolicies.Count, $labels.Count)
+    Write-Log -Message ("Inventar: {0} DLP-Policies, {1} Auto-Labeling-Policies, {2} Publishing-Policies, {3} Sensitivity Labels." -f $dlpPolicies.Count, $autoPolicies.Count, $labelPolicies.Count, $labels.Count)
 
     if (-not $Execute) {
         Write-Log -Level WARN -Message 'Nur Inventarisierung. Für die Löschung zusätzlich -Execute und die Bestätigungsphrase angeben.'
@@ -234,12 +239,17 @@ try {
         [void](Invoke-RemoveObject -InputObject $policy -ObjectType 'DLP-Policy' -RemoveCommand 'Remove-DlpCompliancePolicy')
     }
 
-    # 2. Publishing-Policies entfernen, bevor die darin veröffentlichten Labels gelöscht werden.
+    # 2. Auto-Labeling-Policies entfernen; sie verweisen auf Labels und blockieren sonst deren Löschung.
+    foreach ($policy in $autoPolicies) {
+        [void](Invoke-RemoveObject -InputObject $policy -ObjectType 'Auto-Labeling-Policy' -RemoveCommand 'Remove-AutoSensitivityLabelPolicy')
+    }
+
+    # 3. Publishing-Policies entfernen, bevor die darin veröffentlichten Labels gelöscht werden.
     foreach ($policy in $labelPolicies) {
         [void](Invoke-RemoveObject -InputObject $policy -ObjectType 'Label-Publishing-Policy' -RemoveCommand 'Remove-LabelPolicy')
     }
 
-    # 3. Labels iterativ entfernen. Dadurch werden Sublabels/abhängige Labels zuerst abgebaut,
+    # 4. Labels iterativ entfernen. Dadurch werden Sublabels/abhängige Labels zuerst abgebaut,
     #    auch wenn Get-Label keine verlässliche hierarchische Sortierung liefert.
     $pendingLabels = [System.Collections.Generic.List[object]]::new()
     foreach ($label in $labels) { $pendingLabels.Add($label) }
@@ -266,23 +276,26 @@ try {
 
     # Abschließende Verifikation über erneute Abfrage.
     $remainingDlpPolicies   = @(Get-DlpCompliancePolicy -ErrorAction Stop)
+    $remainingAutoPolicies  = @(Get-AutoSensitivityLabelPolicy -ErrorAction Stop)
     $remainingLabelPolicies = @(Get-LabelPolicy -ErrorAction Stop)
     $remainingLabels        = @(Get-Label -ErrorAction Stop)
 
     [pscustomobject]@{
         VerifiedAt              = Get-Date
         RemainingDlpPolicies    = $remainingDlpPolicies.Count
+        RemainingAutoPolicies   = $remainingAutoPolicies.Count
         RemainingLabelPolicies  = $remainingLabelPolicies.Count
         RemainingLabels         = $remainingLabels.Count
     } | Export-Clixml -LiteralPath (Join-Path $BackupPath 'Verification.clixml')
 
     Export-Inventory -BaseName 'Remaining-DlpCompliancePolicies' -InputObjects $remainingDlpPolicies
+    Export-Inventory -BaseName 'Remaining-AutoLabelingPolicies' -InputObjects $remainingAutoPolicies
     Export-Inventory -BaseName 'Remaining-LabelPublishingPolicies' -InputObjects $remainingLabelPolicies
     Export-Inventory -BaseName 'Remaining-SensitivityLabels' -InputObjects $remainingLabels
 
-    Write-Log -Message ("Verifikation: {0} DLP-Policies, {1} Publishing-Policies und {2} Labels verbleiben." -f $remainingDlpPolicies.Count, $remainingLabelPolicies.Count, $remainingLabels.Count)
+    Write-Log -Message ("Verifikation: {0} DLP-Policies, {1} Auto-Labeling-Policies, {2} Publishing-Policies und {3} Labels verbleiben." -f $remainingDlpPolicies.Count, $remainingAutoPolicies.Count, $remainingLabelPolicies.Count, $remainingLabels.Count)
 
-    if (($remainingDlpPolicies.Count + $remainingLabelPolicies.Count + $remainingLabels.Count) -gt 0) {
+    if (($remainingDlpPolicies.Count + $remainingAutoPolicies.Count + $remainingLabelPolicies.Count + $remainingLabels.Count) -gt 0) {
         throw "Das Cleanup ist nicht vollständig. Details stehen unter '$BackupPath'."
     }
 

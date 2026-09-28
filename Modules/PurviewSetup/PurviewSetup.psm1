@@ -210,6 +210,31 @@ function Get-PurviewPolicySetting {
 
     return $settings
 }
+function Resolve-PurviewSensitiveInfoType {
+    <#
+    .SYNOPSIS
+        Ordnet die konfigurierten Sensitive Information Types den Typen im Tenant zu.
+    .DESCRIPTION
+        Ein Eintrag passt, wenn er dem Namen oder der GUID (Id) eines Typs aus
+        Get-DlpSensitiveInformationType entspricht. Die Namen können je nach
+        Sitzungssprache lokalisiert sein; die GUID ist sprachunabhängig.
+        Gibt Found (Tenant-Namen) und Missing (nicht gefundene Einträge) zurück.
+    #>
+    [CmdletBinding()]
+    [OutputType([pscustomobject])]
+    param(
+        [Parameter(Mandatory = $true)][string[]]$Name,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][object[]]$Types
+    )
+
+    $found = [System.Collections.Generic.List[string]]::new()
+    $missing = [System.Collections.Generic.List[string]]::new()
+    foreach ($entry in $Name) {
+        $match = $Types | Where-Object { [string]$_.Name -eq $entry -or [string]$_.Id -eq $entry } | Select-Object -First 1
+        if ($null -eq $match) { $missing.Add($entry) } else { $found.Add([string]$match.Name) }
+    }
+    return [pscustomobject]@{ Found = @($found); Missing = @($missing) }
+}
 #endregion Labels and settings
 
 #region Desired state
@@ -287,6 +312,6 @@ function Format-PurviewDrift {
 
 Export-ModuleMember -Function @(
     'Initialize-PurviewLog', 'Write-PurviewLog', 'Import-PurviewConfig', 'Connect-PurviewSession',
-    'Resolve-PurviewLabelId', 'Get-PurviewLabelNameMap', 'Get-PurviewPolicySetting',
+    'Resolve-PurviewLabelId', 'Get-PurviewLabelNameMap', 'Get-PurviewPolicySetting', 'Resolve-PurviewSensitiveInfoType',
     'ConvertTo-PurviewComparableValue', 'Compare-PurviewDesiredState', 'Format-PurviewDrift'
 )

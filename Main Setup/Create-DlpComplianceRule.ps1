@@ -4,7 +4,9 @@
 
 .DESCRIPTION
     Erstellt die DLP-Policies und -Regeln für SPO/ODB, Exchange Online, Copilot,
-    Endpoint und optional Google Workspace. Ohne -Execute wird nur eine Vorschau
+    Endpoint und optional Google Workspace sowie eine Policy für sensible Daten
+    ohne Label (Sensitive Information Types aus config/tenant.psd1, für Exchange,
+    SharePoint, OneDrive und Teams). Ohne -Execute wird nur eine Vorschau
     ausgegeben.
 
     Vorhandene Policies und Regeln werden mit der Definition verglichen;
@@ -148,6 +150,7 @@ $spoOdbPolicy          = $NamePrefix + 'SPO ODB - Restrict Sharing Outside'
 $exoPolicy             = $NamePrefix + 'EXO - All user - Restrict sharing outside'
 $copilotPolicy         = $NamePrefix + 'AI -All users - Block processing'
 $endpointPolicy        = $NamePrefix + 'Endpoint - All users - Restrict upload to AI Apps'
+$sensitiveDataPolicy   = $NamePrefix + 'Sensitive data - All workloads - Restrict sharing outside'
 $googleWorkspacePolicy = $NamePrefix + 'GoogleDrive - All users - Block usage'
 
 $policyDefinitions = @(
@@ -158,6 +161,8 @@ $policyDefinitions = @(
             EnforcementPlanes = @('CopilotExperiences')
         } }
     [pscustomobject]@{ Name = $endpointPolicy; Optional = $false; Parameters = @{ EndpointDlpLocation = 'All' } }
+    # Sensible Daten unabhängig vom Label (Sensitive Information Types).
+    [pscustomobject]@{ Name = $sensitiveDataPolicy; Optional = $false; Parameters = @{ ExchangeLocation = 'All'; SharePointLocation = 'All'; OneDriveLocation = 'All'; TeamsLocation = 'All' } }
     [pscustomobject]@{ Name = $googleWorkspacePolicy; Optional = $true; Parameters = @{ ThirdPartyAppDlpLocation = 'All' } }
 )
 
@@ -174,6 +179,21 @@ $copilotRestrictAccess = @(@{ setting = 'ExcludeContentProcessing'; value = 'Blo
 # nicht erlaubte Browser. Welche Domains (z. B. KI-Apps) eingeschränkt sind, wird
 # in den Endpoint-DLP-Einstellungen des Tenants festgelegt (Dienstdomänen).
 $endpointRestrictions = @(@{ Setting = 'CloudEgress'; Value = 'Block' })
+
+# Sensible Daten ohne Label: Sensitive Information Types aus der Konfiguration.
+# minCount/maxCount gelten je Typ. Ab SensitiveInfoBlockThreshold Treffern wird
+# extern blockiert, darunter nur per Policy Tip gewarnt. Die Namen werden nach der
+# Anmeldung gegen Get-DlpSensitiveInformationType geprüft (siehe Region Connection).
+$sensitiveInfoTypes = @($config['SensitiveInfoTypes'] | Where-Object { $_ })
+$sitBlockThreshold = if ($config.ContainsKey('SensitiveInfoBlockThreshold')) { [int]$config.SensitiveInfoBlockThreshold } else { 10 }
+function New-SitCondition {
+    param(
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$Types,
+        [Parameter(Mandatory = $true)][int]$MinCount,
+        [int]$MaxCount = -1
+    )
+    return @($Types | ForEach-Object { @{ Name = $_; minCount = [string]$MinCount; maxCount = [string]$MaxCount } })
+}
 
 $rules = @(
     # SPO/ODB: externe Freigaben von gekennzeichneten Dokumenten kontrollieren.
@@ -239,6 +259,19 @@ $rules = @(
         AdvancedRule = New-AdvancedRule @((New-LabelCondition -Labels $sensitiveLabels))
         BlockAccess = $true; EndpointDlpRestrictions = $endpointRestrictions; EnforcePortalAccess = $true; GenerateAlert = 'true'
     } }
+    # Sensible Daten ohne Label: viele Treffer extern blockieren, wenige nur melden.
+    [pscustomobject]@{ Workload = 'EXO/SPO/ODB/Teams'; Name = 'Sensitive data high volume outside org'; Policy = $sensitiveDataPolicy; Optional = $false; UsesSit = $true; Parameters = @{
+        ContentContainsSensitiveInformation = (New-SitCondition -Types $sensitiveInfoTypes -MinCount $sitBlockThreshold)
+        AccessScope = 'NotInOrganization'; BlockAccess = $true; GenerateAlert = $IncidentReportRecipient; GenerateIncidentReport = $IncidentReportRecipient
+        NotifyUser = 'LastModifier'; NotifyUserType = 'Email,PolicyTip'; NotifyPolicyTipCustomText = 'Content with many sensitive data items must not be shared outside the organization'
+        ReportSeverityLevel = 'High'
+    } }
+    [pscustomobject]@{ Workload = 'EXO/SPO/ODB/Teams'; Name = 'Sensitive data low volume outside org'; Policy = $sensitiveDataPolicy; Optional = $false; UsesSit = $true; Parameters = @{
+        ContentContainsSensitiveInformation = (New-SitCondition -Types $sensitiveInfoTypes -MinCount 1 -MaxCount ($sitBlockThreshold - 1))
+        AccessScope = 'NotInOrganization'; GenerateAlert = $IncidentReportRecipient
+        NotifyUser = 'LastModifier'; NotifyUserType = 'PolicyTip'; NotifyPolicyTipCustomText = 'This content contains sensitive data. Check whether external sharing is necessary.'
+        ReportSeverityLevel = 'Low'
+    } }
     # Google Workspace: sensible externe Uploads verhindern (optional).
     [pscustomobject]@{ Workload = 'Google Workspace'; Name = 'Block upload to google drive'; Policy = $googleWorkspacePolicy; Optional = $true; Parameters = @{
         AdvancedRule = New-AdvancedRule @(
@@ -280,6 +313,28 @@ if ($connected) {
         throw
     }
 
+    # Sensitive Information Types prüfen und auf die Namen im Tenant setzen
+    # (Namen können lokalisiert sein; in der Konfiguration ist auch die GUID möglich).
+    if ($sensitiveInfoTypes.Count -gt 0) {
+        try {
+            $sitResolution = Resolve-PurviewSensitiveInfoType -Name $sensitiveInfoTypes -Types @(Get-DlpSensitiveInformationType -ErrorAction Stop)
+            if ($sitResolution.Missing.Count -gt 0) {
+                Write-PurviewLog -Level ERROR ("Sensitive Information Types nicht gefunden: {0}. Namen bzw. GUIDs mit Get-DlpSensitiveInformationType prüfen und in config/tenant.psd1 (SensitiveInfoTypes) korrigieren." -f ($sitResolution.Missing -join ', '))
+                $sensitiveInfoTypes = @()
+            } else {
+                $sensitiveInfoTypes = @($sitResolution.Found)
+                foreach ($rule in @($rules | Where-Object { $_.PSObject.Properties['UsesSit'] })) {
+                    $minCount = [int]$rule.Parameters.ContentContainsSensitiveInformation[0].minCount
+                    $maxCount = [int]$rule.Parameters.ContentContainsSensitiveInformation[0].maxCount
+                    $rule.Parameters.ContentContainsSensitiveInformation = New-SitCondition -Types $sensitiveInfoTypes -MinCount $minCount -MaxCount $maxCount
+                }
+            }
+        } catch {
+            Write-PurviewLog -Level ERROR "Sensitive Information Types konnten nicht gelesen werden: $($_.Exception.Message)"
+            $sensitiveInfoTypes = @()
+        }
+    }
+
     $oldRuleName = $NamePrefix + 'Disallow sharing of general internal or unlabeled content'
     if ($existingRules.ContainsKey($oldRuleName)) {
         Write-PurviewLog -Level WARN "Alte Regel '$oldRuleName' existiert noch. Sie wurde in '$($NamePrefix)Block sharing of confidential internal content outside org' umbenannt; die alte Regel entfernen, sonst greift die Blockierung doppelt."
@@ -291,6 +346,10 @@ if ($connected) {
 foreach ($definition in $policyDefinitions) {
     if ($definition.Optional -and -not $IncludeGoogleWorkspace) {
         Write-PurviewLog "Optionale DLP-Policy '$($definition.Name)' wird übersprungen (-IncludeGoogleWorkspace)."
+        continue
+    }
+    if ($definition.Name -eq $sensitiveDataPolicy -and $sensitiveInfoTypes.Count -eq 0) {
+        Write-PurviewLog -Level WARN "DLP-Policy '$($definition.Name)' wird übersprungen: keine gültigen SensitiveInfoTypes in der Konfiguration."
         continue
     }
 
@@ -320,6 +379,10 @@ foreach ($definition in $policyDefinitions) {
 foreach ($rule in $rules) {
     if ($rule.Optional -and -not $IncludeGoogleWorkspace) {
         Write-PurviewLog "Optionale DLP-Regel '$($rule.Name)' wird übersprungen (-IncludeGoogleWorkspace)."
+        continue
+    }
+    if ($rule.PSObject.Properties['UsesSit'] -and $sensitiveInfoTypes.Count -eq 0) {
+        Write-PurviewLog -Level WARN "DLP-Regel '$($rule.Name)' wird übersprungen: keine gültigen SensitiveInfoTypes in der Konfiguration."
         continue
     }
 
